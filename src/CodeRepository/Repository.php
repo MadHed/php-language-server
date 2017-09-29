@@ -235,14 +235,24 @@ function byFQN() {
     };
 }
 
+class Reference {
+    public $file;
+    public $range;
+    public $target;
+
+    public function __construct($file, $range, $target) {
+        $this->file = $file;
+        $this->range = $range;
+        $this->target = $target;
+    }
+}
 
 class Repository {
     private $namespaces = [];
-    private $files = [];
-    private $classes = [];
-    private $interfaces = [];
-    private $functions = [];
-    private $variables = [];
+
+    public $files = [];
+    public $symbols = [];
+    public $references = [];
 
     public function addNamespace(Namespace_ $nspace) {
         $this->namespaces[$nspace->getName()] = $nspace;

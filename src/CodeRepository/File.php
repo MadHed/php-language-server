@@ -33,6 +33,11 @@ class File {
         $cls->parent = $this;
     }
 
+    public function addInterface(Interface_ $iface) {
+        $this->interfaces[$iface->getName()] = $iface;
+        $iface->parent = $this;
+    }
+
     public function addFunction(Function_ $fun) {
         $this->functions[$fun->getName()] = $fun;
         $fun->parent = $this;
@@ -52,6 +57,10 @@ class File {
 
     public function classes() {
         return new ArrayIterator($this->classes);
+    }
+
+    public function interfaces() {
+        return new ArrayIterator($this->interfaces);
     }
 
     public function functions() {

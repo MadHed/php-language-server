@@ -3,7 +3,7 @@
 namespace LanguageServer\CodeRepository;
 
 class Interface_ implements Symbol {
-    private $parent;
+    public $parent;
     private $name;
     private $functions = [];
 

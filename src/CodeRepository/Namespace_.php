@@ -7,6 +7,7 @@ class Namespace_ implements Symbol {
     private $files = [];
 
     public function __construct(string $name) {
+        $name = trim($name, '\\');
         $this->name = $name;
     }
 
@@ -15,7 +16,7 @@ class Namespace_ implements Symbol {
     }
 
     public function getFQN(): string {
-        return $this->name;
+        return ($this->name ? '\\' : '').$this->name;
     }
 
     public function addFile(File $file) {
