@@ -135,3 +135,5 @@ $seend = microtime(true);
 
 echo "Serialized in ".seconds($seend-$sestart)."\n";
 echo "Memory used after serializing: ".bytes(memory_get_usage())."\n";
+
+echo count($repo->files)."\n";

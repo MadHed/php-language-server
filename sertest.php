@@ -147,34 +147,36 @@ function unserialize($string, $state = null) {
 
     if ($ch === 's') { // s:5:"hello";
         $start = $state->pos + 2;
-        $end = $start + 1;
-        while ($string[$end] >= '0' && $string[$end] <= '9') {
-            $end++;
+        $number = 0;
+        while ($string[$start] >= '0' && $string[$start] <= '9') {
+            $number = $number * 10 + ord($string[$start]) - 48;
+            $start++;
         }
-        $state->pos = $end + 2;
-        $num = (int)substr($string, $start, $end - $start);
-        $str = substr($string, $state->pos, $num);
-        $state->pos += $num + 2;
+        $state->pos = $start + 2;
+        $str = substr($string, $state->pos, $number);
+        $state->pos += $number + 2;
         return $str;
     }
     else if ($ch === 'i') { // i:1234;
         $start = $state->pos + 2;
-        $end = $start + 1;
-        while ($string[$end] >= '0' && $string[$end] <= '9') {
-            $end++;
+        $number = 0;
+        while ($string[$start] >= '0' && $string[$start] <= '9') {
+            $number = $number * 10 + ord($string[$start]) - 48;
+            $start++;
         }
-        $state->pos = $end + 1;
-        return (int)substr($string, $start, $end - $start);
+        $state->pos = $start + 1;
+        return $number;
     }
     else if ($ch === 'O') { // O:3:"Foo":2:{s:1:"a";i:0;}
 
         $start = $state->pos + 2;
-        $end = $start + 1;
-        while ($string[$end] >= '0' && $string[$end] <= '9') {
-            $end++;
+        $number = 0;
+        while ($string[$start] >= '0' && $string[$start] <= '9') {
+            $number = $number * 10 + ord($string[$start]) - 48;
+            $start++;
         }
-        $nameLength = (int)substr($string, $start, $end - $start);
-        $className = substr($string, $end + 2, $nameLength);
+        $className = substr($string, $start + 2, $number);
+        $state->pos = $start + $number + 2;
 
         $refl = $state->getReflectionClass($className);
 
@@ -182,14 +184,14 @@ function unserialize($string, $state = null) {
 
         $state->objs[$state->id] = $obj;
 
-        $start = $end + $nameLength + 4;
-        $end = $start + 1;
-        while ($string[$end] >= '0' && $string[$end] <= '9') {
-            $end++;
+        $start = $state->pos + 2;
+        $numProps = 0;
+        while ($string[$start] >= '0' && $string[$start] <= '9') {
+            $numProps = $numProps * 10 + ord($string[$start]) - 48;
+            $start++;
         }
-        $numProps = (int)substr($string, $start, $end - $start);
 
-        $state->pos = $end + 2;
+        $state->pos = $start + 2;
 
         for($i=0;$i<$numProps;$i++) {
             $state->id++;
@@ -223,27 +225,27 @@ function unserialize($string, $state = null) {
     }
     else if ($ch === 'r') { // r:123;
         $start = $state->pos + 2;
-        $end = $start + 1;
-        while ($string[$end] >= '0' && $string[$end] <= '9') {
-            $end++;
+        $id = 0;
+        while ($string[$start] >= '0' && $string[$start] <= '9') {
+            $id = $id * 10 + ord($string[$start]) - 48;
+            $start++;
         }
-        $id = (int)substr($string, $start, $end - $start);
-        $state->pos = $end + 1;
+        $state->pos = $start + 1;
         return $state->objs[$id];
     }
     else if ($ch === 'N') { // N;
         $state->pos += 2;
         return null;
     }
-    else if ($ch === 'a') { // a:1{i:0;i:13;}
+    else if ($ch === 'a') { // a:1:{i:0;i:13;}
         $arr = [];
         $start = $state->pos + 2;
-        $end = $start + 1;
-        while ($string[$end] >= '0' && $string[$end] <= '9') {
-            $end++;
+        $num = 0;
+        while ($string[$start] >= '0' && $string[$start] <= '9') {
+            $num = $num * 10 + ord($string[$start]) - 48;
+            $start++;
         }
-        $num = (int)substr($string, $start, $end - $start);
-        $state->pos = $end + 2;
+        $state->pos = $start + 2;
         for($i=0;$i<$num;$i++) {
             $state->id++;
             $k = unserialize($string, $state);
@@ -254,13 +256,22 @@ function unserialize($string, $state = null) {
         return $arr;
     }
     else if ($ch === 'd') { // d:123.456;
-        $start = $state->pos + 2;
-        $end = $start + 1;
-        while (($string[$end] >= '0' && $string[$end] <= '9') || $string[$end] === '.') {
-            $end++;
+        $num = 0;
+        $decs = 1;
+        $decimals = false;
+        while (($string[$start] >= '0' && $string[$start] <= '9') || $string[$start] === '.') {
+            $num = $num * 10 + ord($string[$start]) - 48;
+            $start++;
+            if ($string[$start] === '.') {
+                $decimals = true;
+            }
+            else if ($decimals) {
+                $decs *= 10;
+            }
         }
-        $state->pos = $end + 1;
-        return (float)substr($string, $start, $end - $start);
+        $num /= $decs;
+        $state->pos = $start + 1;
+        return $num;
     }
     if ($ch === 'b') { // b:1;
         $state->pos += 3;
