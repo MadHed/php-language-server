@@ -169,7 +169,53 @@ function unserialize($string, $state = null) {
         return $arr;
     }
     else if ($ch === 'O') { // O:3:"Foo":2:{s:1:"a";i:0;}
+
+        $start = $state->pos + 2;
+        $end = $start + 1;
+        while (ord($string[$end]) >= 48 && ord($string[$end]) <= 57) {
+            $end++;
+        }
+        $nameLength = (int)substr($string, $start, $end - $start);
+        $className = substr($string, $end + 2, $nameLength);
+
         $obj = new \stdClass();
+
+        $start = $end + $nameLength + 4;
+        $end = $start + 1;
+        while (ord($string[$end]) >= 48 && ord($string[$end]) <= 57) {
+            $end++;
+        }
+        $numProps = (int)substr($string, $start, $end - $start);
+
+        $state->pos = $end + 2;
+
+        for($i=0;$i<$numProps;$i++) {
+            $k = unserialize($string, $state);
+            $v = unserialize($string, $state);
+            var_dump($k);
+            if (substr($k, 0, 2) === "\0*") {
+                $k = substr($k, 3);
+                $obj->$k = $v;
+            }
+            else if (substr($k, 0, 1) === "\0") {
+                $z = strrpos($k, "\0");
+                $cls = substr($k, 1, $z - 1);
+                var_dump($cls);
+                $k = substr($k, $z + 1);
+                var_dump($k);
+                echo "\n";
+                $obj->$k = $v;
+            }
+            else {
+                $obj->$k = $v;
+            }
+        }
+        else if ($ch === 'r') { // r:123;
+
+        }
+
+        $state->pos += 1;
+
         return $obj;
     }
     else {
@@ -177,5 +223,5 @@ function unserialize($string, $state = null) {
     }
 }
 
-var_dump(unserialize('O:3:"Foo":1:{s:1:"a";i:0;}'));
-//var_dump(unserialize(file_get_contents('phpls.cache')));
+//var_dump(unserialize('O:3:"Foo":3:{s:1:"a";i:0;s:1:"b";i:0;s:1:"c";i:0;}'));
+var_dump(unserialize(file_get_contents('phpls.cache')));
