@@ -7,16 +7,28 @@ require 'vendor/autoload.php';
 class SerializationState {
     public $id = 1;
     public $refs = [];
+    public $objs = [];
     public $pos = 0;
+
     public function addRef($obj) {
         $this->refs[\spl_object_hash($obj)] = $this->id;
     }
     public function getRef($obj) {
         $hash = \spl_object_hash($obj);
-        if (array_key_exists($hash, $this->refs)) {
+        if (isset($this->refs[$hash])) {
             return $this->refs[$hash];
         }
         return -1;
+    }
+
+    public function addObj($obj) {
+        $this->objs[$this->id] = $obj;
+    }
+    public function getObj($id) {
+        if (isset($this->objs[$id])) {
+            return $this->objs[$id];
+        }
+        return null;
     }
 }
 
@@ -166,6 +178,7 @@ function unserialize($string, $state = null) {
         $num = (int)substr($string, $start, $end - $start);
         $state->pos = $end + 2;
         for($i=0;$i<$num;$i++) {
+            $state->id++;
             $k = unserialize($string, $state);
             $v = unserialize($string, $state);
             $arr[$k] = $v;
@@ -184,6 +197,7 @@ function unserialize($string, $state = null) {
         $className = substr($string, $end + 2, $nameLength);
 
         $obj = new \stdClass();
+        $state->addObj($obj);
 
         $start = $end + $nameLength + 4;
         $end = $start + 1;
@@ -195,9 +209,10 @@ function unserialize($string, $state = null) {
         $state->pos = $end + 2;
 
         for($i=0;$i<$numProps;$i++) {
+            $state->id++;
             $k = unserialize($string, $state);
             $v = unserialize($string, $state);
-            var_dump($k);
+
             if (substr($k, 0, 2) === "\0*") {
                 $k = substr($k, 3);
                 $obj->$k = $v;
@@ -205,23 +220,29 @@ function unserialize($string, $state = null) {
             else if (substr($k, 0, 1) === "\0") {
                 $z = strrpos($k, "\0");
                 $cls = substr($k, 1, $z - 1);
-                var_dump($cls);
+
                 $k = substr($k, $z + 1);
-                var_dump($k);
-                echo "\n";
+
                 $obj->$k = $v;
             }
             else {
                 $obj->$k = $v;
             }
         }
-        else if ($ch === 'r') { // r:123;
-
-        }
 
         $state->pos += 1;
 
         return $obj;
+    }
+    else if ($ch === 'r') { // r:123;
+        $start = $state->pos + 2;
+        $end = $start + 1;
+        while (ord($string[$end]) >= 48 && ord($string[$end]) <= 57) {
+            $end++;
+        }
+        $id = (int)substr($string, $start, $end - $start);
+        $state->pos = $end + 1;
+        return $state->getObj($id);
     }
     else {
         return false;
