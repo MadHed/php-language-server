@@ -3,10 +3,6 @@
 namespace LanguageServer\CodeRepository;
 
 class Variable extends Symbol {
-    /**
-     * @var File|Class_|Function_
-     */
-    public $parent;
 
     public function __construct(string $name) {
         $this->name = $name;

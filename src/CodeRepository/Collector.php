@@ -105,6 +105,7 @@ class Collector {
             if ($name) {
                 $this->currentClass = new Class_($name);
                 $this->getNamespace()->addClass($this->currentClass);
+                $this->repo->fqnMap[$this->currentClass->fqn()] = $this->currentClass;
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
@@ -137,6 +138,7 @@ class Collector {
             if ($name) {
                 $this->currentInterface = new Interface_($name);
                 $this->getNamespace()->addInterface($this->currentInterface);
+                $this->repo->fqnMap[$this->currentInterface->fqn()] = $this->currentInterface;
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
@@ -159,6 +161,7 @@ class Collector {
             if ($name) {
                 $this->currentFunction = new Function_($name);
                 $this->getNamespace()->addFunction($this->currentFunction);
+                $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
             }
         }
         else if ($node instanceof MethodDeclaration) {
@@ -166,6 +169,7 @@ class Collector {
             if ($name && $this->currentClass) {
                 $this->currentFunction = new Function_($name);
                 $this->currentClass->addFunction($this->currentFunction);
+                $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {

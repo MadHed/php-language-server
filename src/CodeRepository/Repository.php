@@ -235,6 +235,12 @@ function fqnEquals($search) {
     };
 }
 
+function nameEquals($search) {
+    return function ($c) use ($search) {
+        return $c->name === $search;
+    };
+}
+
 function byName() {
     return function ($a, $b) {
         return $a->name <=> $b->name;
@@ -247,21 +253,10 @@ function byFQN() {
     };
 }
 
-class Reference {
-    public $file;
-    public $range;
-    public $target;
-
-    public function __construct($file, $range, $target) {
-        $this->file = $file;
-        $this->range = $range;
-        $this->target = $target;
-    }
-}
-
 class Repository {
     public $files = [];
     public $references = [];
+    public $fqnMap = [];
 
     public function files() {
         return new ArrayIterator($this->files);

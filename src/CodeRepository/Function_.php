@@ -3,7 +3,6 @@
 namespace LanguageServer\CodeRepository;
 
 class Function_ extends Symbol {
-    public $parent;
     private $variables = [];
 
     public function __construct(string $name) {
@@ -20,11 +19,14 @@ class Function_ extends Symbol {
     }
 
     public function fqn(): string {
-        if ($this->parent instanceof File) {
-            return $this->parent->getNamespace()->fqn().'\\'.$this->name.'()';
+        if ($this->parent instanceof Namespace_) {
+            return $this->parent->fqn().'\\'.$this->name.'()';
         }
-        else if ($this->parent instanceof Symbol) {
+        else if ($this->parent instanceof Class_ || $this->parent instanceof Interface_) {
             return $this->parent->fqn().'::'.$this->name.'()';
+        }
+        else {
+            return $this->parent->fqn().'@'.$this->name.'()';
         }
     }
 }

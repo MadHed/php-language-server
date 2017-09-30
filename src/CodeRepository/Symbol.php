@@ -3,9 +3,9 @@
 namespace LanguageServer\CodeRepository;
 
 abstract class Symbol {
-    public $file;
     public $name;
     public $range;
+    public $parent;
 
     abstract function fqn(): string;
 }

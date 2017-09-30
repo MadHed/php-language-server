@@ -3,7 +3,6 @@
 namespace LanguageServer\CodeRepository;
 
 class Interface_ extends Symbol {
-    public $parent;
     private $functions = [];
 
     public function __construct(string $name) {

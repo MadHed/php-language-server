@@ -4,11 +4,10 @@ namespace LanguageServer\CodeRepository;
 
 class File {
     public $name;
-    public $parent;
-    public $namespaces = [];
-    private $content;
     private $hash;
     public $parseTime = 0;
+
+    public $namespaces = [];
 
     public function __construct(string $name, string $content) {
         $this->name = $name;
@@ -17,10 +16,6 @@ class File {
 
     public function hash() {
         return $this->hash;
-    }
-
-    public function getNamespace(): Namespace_ {
-        return $this->parent;
     }
 
     public function namespaces() {

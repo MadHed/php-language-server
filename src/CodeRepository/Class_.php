@@ -3,7 +3,6 @@
 namespace LanguageServer\CodeRepository;
 
 class Class_ extends Symbol {
-    public $parent;
     private $implements = [];
     private $extends;
     private $variables = [];
