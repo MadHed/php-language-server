@@ -7,4 +7,5 @@ stubs
 *.ast
 node_modules/
 phpls.cache
+phpls.cache.bak
 

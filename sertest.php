@@ -10,6 +10,7 @@ class SerializationState {
     public $objs = [];
     public $pos = 0;
     public $reflClasses = [];
+    public $reflProperties = [];
 
     public function addRef($obj) {
         $this->refs[\spl_object_hash($obj)] = $this->id;
@@ -25,6 +26,18 @@ class SerializationState {
 
     public function getReflectionClass($cls) {
         return $this->reflClasses[$cls] ?? $this->reflClasses[$cls] = new \ReflectionClass($cls);
+    }
+
+    public function getReflectionProperty($cls, $prop) {
+        $p = $this->reflProperties[$cls][$prop] ?? $this->getReflectionClass($cls)->getProperty($prop);
+        if (!isset($this->reflProperties[$cls])) {
+            $this->reflProperties[$cls] = [];
+        }
+        if (!isset($this->reflProperties[$cls][$prop])) {
+            $p->setAccessible(true);
+            $this->reflProperties[$cls][$prop] = $p;
+        }
+        return $p;
     }
 }
 
@@ -68,13 +81,14 @@ function serialize($value, $state = null) {
         }
         else {
             $state->addRef($value);
-            $cls = \get_class($value);
-            $str = "O:".\strlen($cls).":\"".$cls."\":";
             $ref = new \ReflectionClass($value);
+            $cls = $ref->getName();
             $nref = $ref;
             do {
                 $refs[] = $ref;
             } while($nref = $ref->getParentClass() && $nref != $ref && $ref = $nref);
+
+            $str = "O:".\strlen($cls).":\"".$cls."\":";
 
             $numProps = 0;
             foreach($refs as $ref) {
@@ -148,9 +162,11 @@ function unserialize($string, $state = null) {
     if ($ch === 's') { // s:5:"hello";
         $start = $state->pos + 2;
         $number = 0;
-        while ($string[$start] >= '0' && $string[$start] <= '9') {
+        while (true) {
+            $ch = $string[$start];
+            if ($ch < '0' || $ch > '9') break;
             $number *= 10;
-            $number += $string[$start];
+            $number += $ch;
             $start++;
         }
         $state->pos = $start + 2;
@@ -161,9 +177,11 @@ function unserialize($string, $state = null) {
     else if ($ch === 'i') { // i:1234;
         $start = $state->pos + 2;
         $number = 0;
-        while ($string[$start] >= '0' && $string[$start] <= '9') {
+        while (true) {
+            $ch = $string[$start];
+            if ($ch < '0' || $ch > '9') break;
             $number *= 10;
-            $number += $string[$start];
+            $number += $ch;
             $start++;
         }
         $state->pos = $start + 1;
@@ -173,9 +191,11 @@ function unserialize($string, $state = null) {
 
         $start = $state->pos + 2;
         $number = 0;
-        while ($string[$start] >= '0' && $string[$start] <= '9') {
+        while (true) {
+            $ch = $string[$start];
+            if ($ch < '0' || $ch > '9') break;
             $number *= 10;
-            $number += $string[$start];
+            $number += $ch;
             $start++;
         }
         $className = substr($string, $start + 2, $number);
@@ -189,9 +209,11 @@ function unserialize($string, $state = null) {
 
         $start = $state->pos + 2;
         $numProps = 0;
-        while ($string[$start] >= '0' && $string[$start] <= '9') {
+        while (true) {
+            $ch = $string[$start];
+            if ($ch < '0' || $ch > '9') break;
             $numProps *= 10;
-            $numProps += $string[$start];
+            $numProps += $ch;
             $start++;
         }
 
@@ -201,14 +223,14 @@ function unserialize($string, $state = null) {
             $state->id++;
             $k = unserialize($string, $state);
             $v = unserialize($string, $state);
+            $k0 = $k[0];
 
-            if (substr($k, 0, 2) === "\0*") {
+            if ($k0 === "\0" && $k[1] === '*') {
                 $k = substr($k, 3);
-                $prop = $refl->getProperty($k);
-                $prop->setAccessible(true);
+                $prop = $state->getReflectionProperty($className, $k);
                 $prop->setValue($obj, $v);
             }
-            else if (substr($k, 0, 1) === "\0") {
+            else if ($k0 === "\0") {
                 $z = strrpos($k, "\0");
                 $cls = substr($k, 1, $z - 1);
                 $k = substr($k, $z + 1);
@@ -230,9 +252,11 @@ function unserialize($string, $state = null) {
     else if ($ch === 'r') { // r:123;
         $start = $state->pos + 2;
         $id = 0;
-        while ($string[$start] >= '0' && $string[$start] <= '9') {
+        while (true) {
+            $ch = $string[$start];
+            if ($ch < '0' || $ch > '9') break;
             $id *= 10;
-            $id += $string[$start];
+            $id += $ch;
             $start++;
         }
         $state->pos = $start + 1;
@@ -246,9 +270,11 @@ function unserialize($string, $state = null) {
         $arr = [];
         $start = $state->pos + 2;
         $num = 0;
-        while ($string[$start] >= '0' && $string[$start] <= '9') {
+        while (true) {
+            $ch = $string[$start];
+            if ($ch < '0' || $ch > '9') break;
             $num *= 10;
-            $num += $string[$start];
+            $num += $ch;
             $start++;
         }
         $state->pos = $start + 2;
@@ -265,18 +291,19 @@ function unserialize($string, $state = null) {
         $num = 0;
         $decs = 1;
         $decimals = false;
-        while (($string[$start] >= '0' && $string[$start] <= '9') || $string[$start] === '.') {
-            if ($string[$start] === '.') {
+        while (true) {
+            $ch = $string[$start];
+            if (($ch < '0' || $ch > '9') && $ch !== '.') break;
+            if ($ch === '.') {
                 $decimals = true;
             }
             else {
                 $num *= 10;
-                $num += $string[$start];
+                $num += $ch;
                 if ($decimals) {
                     $decs *= 10;
                 }
             }
-            $start++;
         }
         $num /= $decs;
         $state->pos = $start + 1;
