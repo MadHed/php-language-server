@@ -42,7 +42,7 @@ $start = \microtime(true);
 
 if (file_exists('phpls.cache')) {
     $usstart = microtime(true);
-    $repo = @unserialize(file_get_contents('phpls.cache'));
+    $repo = @\unserialize(file_get_contents('phpls.cache'));
     $usend = microtime(true);
     echo "Unserialized in ".seconds($usend-$usstart)."\n";
 }
@@ -124,9 +124,123 @@ echo count($repo->references)." references. Resolved: $resolved, Unresolved: $un
 echo \count($files)." files in ".seconds($end-$start)."; $cached from cache; ".bytes(\memory_get_usage())." allocated\n";
 
 $sestart = microtime(true);
-file_put_contents('phpls.cache', serialize($repo));
+file_put_contents('phpls.cache', \serialize($repo));
 $seend = microtime(true);
 
 echo "Serialized in ".seconds($seend-$sestart)."\n";
 echo "Memory used after serializing: ".bytes(memory_get_usage())."\n";
 
+
+
+
+
+
+class SerializationState {
+    public $id = 1;
+    public $refs = [];
+    public function addRef($obj) {
+        $this->refs[\spl_object_hash($obj)] = $this->id;
+    }
+    public function getRef($obj) {
+        $hash = \spl_object_hash($obj);
+        if (array_key_exists($hash, $this->refs)) {
+            return $this->refs[$hash];
+        }
+        return -1;
+    }
+}
+
+function serialize($value, $state = null) {
+    if ($state === null) {
+        $state = new SerializationState();
+    }
+
+    if ($value === null) {
+        return 'N;';
+    }
+    else if ($value === false) {
+        return 'b:0;';
+    }
+    else if ($value === true) {
+        return 'b:1;';
+    }
+    else if (\is_int($value)) {
+        return "i:$value;";
+    }
+    else if (\is_float($value)) {
+        return "d:$value;";
+    }
+    else if (\is_string($value)) {
+        return "s:".\strlen($value).":\"".$value."\";";
+    }
+    else if (\is_array($value)) {
+        $str = "a:".\count($value).":{";
+        foreach($value as $k => $v) {
+            $str .= serialize($k, $state);
+            $state->id++;
+            $str .= serialize($v, $state);
+        }
+        return $str . "}";
+    }
+    else if (\is_object($value)) {
+        $id = $state->getRef($value);
+        if ($id >= 0) {
+            return "r:$id;";
+        }
+        else {
+            $state->addRef($value);
+            $cls = \get_class($value);
+            $str = "O:".\strlen($cls).":\"".$cls."\":";
+            $ref = new \ReflectionClass($value);
+            $refs[] = $ref;
+            while($ref = $ref->getParentClass()) {
+                $refs[] = $ref;
+            }
+
+            $numProps = 0;
+            foreach($refs as $ref) {
+                $props = $ref->getProperties();
+                foreach($props as $prop) {
+                    if (!$prop->isStatic()) $numProps++;
+                }
+            }
+
+            $str .= "$numProps:{";
+
+            $visitedProps = [];
+            foreach($refs as $ref) {
+                $className = $ref->getName();
+                $props = $ref->getProperties();
+                foreach($props as $prop) {
+                    if ($prop->isStatic()) continue;
+                    $prop->setAccessible(true);
+                    $state->id++;
+                    if ($prop->isPrivate()) {
+                        $str .= serialize("\0".$className."\0".$prop->getName(), $state);
+                        $str .= serialize($prop->getValue($value), $state);
+                    }
+                    else if (!isset($visitedProps[$prop->getName()])) {
+                        if ($prop->isProtected()) {
+                            $str .= serialize("\0*\0".$prop->getName(), $state);
+                        }
+                        else {
+                            $str .= serialize($prop->getName(), $state);
+                        }
+                        $str .= serialize($prop->getValue($value), $state);
+                        $visitedProps[$prop->getName()] = 1;
+                    }
+                }
+            }
+            $str .= "}";
+            return $str;
+        }
+    }
+}
+
+function unserialize($string) {
+}
+
+$start = microtime(true);
+file_put_contents('phpls.cache.new', serialize($repo));
+$end = microtime(true);
+echo "Custom serialization: ".seconds($end-$start)."; ".bytes(\memory_get_usage())."\n";

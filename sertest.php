@@ -5,7 +5,7 @@ namespace LanguageServer\CodeRepository;
 require 'vendor/autoload.php';
 
 class SerializationState {
-    public $id = -1;
+    public $id = 1;
     public $refs = [];
     public function addRef($obj) {
         $this->refs[\spl_object_hash($obj)] = $this->id;
@@ -23,7 +23,6 @@ function serialize($value, $state = null) {
     if ($state === null) {
         $state = new SerializationState();
     }
-    $state->id++;
 
     if ($value === null) {
         return 'N;';
@@ -47,6 +46,7 @@ function serialize($value, $state = null) {
         $str = "a:".\count($value).":{";
         foreach($value as $k => $v) {
             $str .= serialize($k, $state);
+            $state->id++;
             $str .= serialize($v, $state);
         }
         return $str . "}";
@@ -83,6 +83,7 @@ function serialize($value, $state = null) {
                 foreach($props as $prop) {
                     if ($prop->isStatic()) continue;
                     $prop->setAccessible(true);
+                    $state->id++;
                     if ($prop->isPrivate()) {
                         $str .= serialize("\0".$className."\0".$prop->getName(), $state);
                         $str .= serialize($prop->getValue($value), $state);
@@ -107,3 +108,20 @@ function serialize($value, $state = null) {
 
 function unserialize($string) {
 }
+
+class Foo {
+    public $a;
+    public $b;
+    public $c;
+    public $r;
+    public function __construct() {
+        $this->r = $this;
+    }
+}
+$val = [new Foo(), new Foo()];
+
+$a = \serialize($val);
+$b = serialize($val);
+echo "$a\n";
+echo "$b\n";
+var_dump($a === $b);
