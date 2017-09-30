@@ -55,6 +55,10 @@ abstract class IteratorBase {
         return new FilesIterator($this);
     }
 
+    public function namespaces() {
+        return new NamespacesIterator($this);
+    }
+
     public function filter($predicate) {
         return new FilterIterator($this, $predicate);
     }
@@ -142,6 +146,14 @@ class InterfacesIterator extends IteratorBase {
     }
 }
 
+class NamespacesIterator extends IteratorBase {
+    public function gen() {
+        foreach($this->base->gen() as $element) {
+            yield from $element->namespaces()->gen();
+        }
+    }
+}
+
 class ArrayIterator extends IteratorBase {
     public function gen() {
         yield from $this->base;
@@ -213,25 +225,25 @@ class LimitIterator extends IteratorBase {
 
 function nameContains($search) {
     return function ($c) use ($search) {
-        return stripos($c->getName(), $search) !== false;
+        return stripos($c->name, $search) !== false;
     };
 }
 
 function fqnEquals($search) {
     return function ($c) use ($search) {
-        return $c->getFQN() === $search;
+        return $c->fqn() === $search;
     };
 }
 
 function byName() {
     return function ($a, $b) {
-        return $a->getName() <=> $b->getName();
+        return $a->name <=> $b->name;
     };
 }
 
 function byFQN() {
     return function ($a, $b) {
-        return $a->getFQN() <=> $b->getFQN();
+        return $a->fqn() <=> $b->fqn();
     };
 }
 
@@ -248,24 +260,10 @@ class Reference {
 }
 
 class Repository {
-    private $namespaces = [];
-
     public $files = [];
-    public $symbols = [];
     public $references = [];
 
-    public function addNamespace(Namespace_ $nspace) {
-        $this->namespaces[$nspace->getName()] = $nspace;
-    }
-
-    public function namespaces() {
-        return new ArrayIterator($this->namespaces);
-    }
-
-    public function namespace(string $name) {
-        if (!\array_key_exists($name, $this->namespaces)) {
-            $this->addNamespace(new Namespace_($name));
-        }
-        return $this->namespaces[$name];
+    public function files() {
+        return new ArrayIterator($this->files);
     }
 }

@@ -40,7 +40,8 @@ class Collector {
         $this->repo = $repo;
         $this->filename = $filename;
         $this->src = $src;
-        $this->namespace = $repo->namespace('');
+        $this->file = new File($filename, $src->fileContents);
+        $repo->files[$filename] = $this->file;
     }
 
     private function expandName($name) {
@@ -51,7 +52,7 @@ class Collector {
             return '\\'.$name;
         }
         else {
-            return $this->namespace->getFQN().'\\'.$name;
+            return $this->namespace->fqn().'\\'.$name;
         }
     }
 
@@ -75,21 +76,35 @@ class Collector {
         $this->leave($node);
     }
 
-    private function visit($node) {
-        if ($node instanceof SourceFileNode) {
-            $this->file = new File($this->filename, $node->fileContents);
-            $node->toRepo = $this->file;
+    private function getNamespace() {
+        if ($this->namespace === null) {
+            if (!isset($this->file->namespaces[''])) {
+                $globalNspace = new Namespace_('');
+                $globalNspace->parent = $this->file;
+                $this->file->namespaces[''] = $globalNspace;
+            }
+            $this->namespace = $this->file->namespaces[''];
         }
-        else if ($node instanceof NamespaceDefinition) {
-            $this->namespace = $this->repo->namespace($node->name ? $node->name->getText() : '');
-            $node->toRepo = $this->namespace;
+        return $this->namespace;
+    }
+
+    private function visit($node) {
+        if ($node instanceof NamespaceDefinition) {
+            $name = $node->name ? $node->name->getText() : '';
+            if (isset($this->file->namespaces[$name])) {
+                $this->namespace = $this->file->namespaces[$name];
+            }
+            else {
+                $this->namespace = new Namespace_($name);
+                $this->namespace->parent = $this->file;
+                $this->file->namespaces[$name] = $this->namespace;
+            }
         }
         else if ($node instanceof ClassDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
                 $this->currentClass = new Class_($name);
-                $node->toRepo = $this->currentClass;
-                $this->file->addClass($this->currentClass);
+                $this->getNamespace()->addClass($this->currentClass);
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
@@ -121,8 +136,7 @@ class Collector {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
                 $this->currentInterface = new Interface_($name);
-                $node->toRepo = $this->currentInterface;
-                $this->file->addInterface($this->currentInterface);
+                $this->getNamespace()->addInterface($this->currentInterface);
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
@@ -144,8 +158,7 @@ class Collector {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
                 $this->currentFunction = new Function_($name);
-                $this->file->addFunction($this->currentFunction);
-                $node->toRepo = $this->currentFunction;
+                $this->getNamespace()->addFunction($this->currentFunction);
             }
         }
         else if ($node instanceof MethodDeclaration) {
@@ -153,7 +166,6 @@ class Collector {
             if ($name && $this->currentClass) {
                 $this->currentFunction = new Function_($name);
                 $this->currentClass->addFunction($this->currentFunction);
-                $node->toRepo = $this->currentFunction;
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
@@ -162,9 +174,8 @@ class Collector {
                 if (!\array_key_exists($name, $this->scope)) {
                     $var = new Variable($name);
                     $this->scope[$name] = $var;
-                    $target = $this->currentFunction ?? $this->currentClass ?? $this->file;
+                    $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
                     $target->addVariable($var);
-                    $node->toRepo = $var;
                 }
                 else {
                     $start = $node->getStart();
@@ -184,20 +195,13 @@ class Collector {
                     $var = new Variable($name);
                     $this->scope[$name] = $var;
                     $this->currentFunction->addVariable($var);
-                    $node->toRepo = $var;
                 }
             }
         }
     }
 
     private function leave($node) {
-        if ($node instanceof SourceFileNode) {
-            if ($this->namespace === null) {
-                $this->namespace = $this->repo->namespace('');
-            }
-            $this->namespace->addFile($this->file);
-        }
-        else if ($node instanceof ClassDeclaration) {
+        if ($node instanceof ClassDeclaration) {
             $this->currentClass = null;
         }
         else if ($node instanceof InterfaceDeclaration) {

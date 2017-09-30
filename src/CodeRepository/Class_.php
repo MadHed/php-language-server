@@ -2,9 +2,8 @@
 
 namespace LanguageServer\CodeRepository;
 
-class Class_ implements Symbol {
+class Class_ extends Symbol {
     public $parent;
-    private $name;
     private $implements = [];
     private $extends;
     private $variables = [];
@@ -14,21 +13,17 @@ class Class_ implements Symbol {
         $this->name = $name;
     }
 
-    public function getName(): string {
-        return $this->name;
-    }
-
-    public function getFQN(): string {
-        return $this->parent->getNamespace()->getFQN().'\\'.$this->name;
+    public function fqn(): string {
+        return $this->parent->fqn().'\\'.$this->name;
     }
 
     public function addFunction(Function_ $fun) {
-        $this->functions[$fun->getName()] = $fun;
+        $this->functions[$fun->name] = $fun;
         $fun->parent = $this;
     }
 
     public function addVariable(Variable $var) {
-        $this->variables[$var->getName()] = $var;
+        $this->variables[$var->name] = $var;
         $var->parent = $this;
     }
 

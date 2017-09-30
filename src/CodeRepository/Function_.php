@@ -2,21 +2,16 @@
 
 namespace LanguageServer\CodeRepository;
 
-class Function_ implements Symbol {
+class Function_ extends Symbol {
     public $parent;
-    private $name;
     private $variables = [];
 
     public function __construct(string $name) {
         $this->name = $name;
     }
 
-    public function getName(): string {
-        return $this->name;
-    }
-
     public function addVariable(Variable $var) {
-        $this->variables[$var->getName()] = $var;
+        $this->variables[$var->name] = $var;
         $var->parent = $this;
     }
 
@@ -24,12 +19,12 @@ class Function_ implements Symbol {
         return new ArrayIterator($this->variables);
     }
 
-    public function getFQN(): string {
+    public function fqn(): string {
         if ($this->parent instanceof File) {
-            return $this->parent->getNamespace()->getFQN().'\\'.$this->name.'()';
+            return $this->parent->getNamespace()->fqn().'\\'.$this->name.'()';
         }
         else if ($this->parent instanceof Symbol) {
-            return $this->parent->getFQN().'::'.$this->name.'()';
+            return $this->parent->fqn().'::'.$this->name.'()';
         }
     }
 }

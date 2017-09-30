@@ -2,35 +2,54 @@
 
 namespace LanguageServer\CodeRepository;
 
-class Namespace_ implements Symbol {
-    private $name;
-    private $files = [];
+class Namespace_ extends Symbol {
+    private $classes = [];
+    private $interfaces = [];
+    private $functions = [];
+    private $variables = [];
 
     public function __construct(string $name) {
         $name = trim($name, '\\');
         $this->name = $name;
     }
 
-    public function getName(): string {
-        return $this->name;
-    }
-
-    public function getFQN(): string {
+    public function fqn(): string {
         return ($this->name ? '\\' : '').$this->name;
     }
 
-    public function addFile(File $file) {
-        $this->files[$file->getName()] = $file;
-        $file->parent = $this;
+    public function addVariable(Variable $var) {
+        $this->variables[$var->name] = $var;
+        $var->parent = $this;
+    }
+
+    public function addClass(Class_ $cls) {
+        $this->classes[$cls->name] = $cls;
+        $cls->parent = $this;
+    }
+
+    public function addInterface(Interface_ $iface) {
+        $this->interfaces[$iface->name] = $iface;
+        $iface->parent = $this;
+    }
+
+    public function addFunction(Function_ $fun) {
+        $this->functions[$fun->name] = $fun;
+        $fun->parent = $this;
     }
 
     public function variables() {
-        foreach ($this->files as $file) {
-            yield from $file->variables();
-        }
+        return new ArrayIterator($this->variables);
     }
 
-    public function files() {
-        return new ArrayIterator($this->files);
+    public function classes() {
+        return new ArrayIterator($this->classes);
+    }
+
+    public function interfaces() {
+        return new ArrayIterator($this->interfaces);
+    }
+
+    public function functions() {
+        return new ArrayIterator($this->functions);
     }
 }

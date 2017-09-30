@@ -2,7 +2,10 @@
 
 namespace LanguageServer\CodeRepository;
 
-interface Symbol {
-    function getName(): string;
-    function getFQN(): string;
+abstract class Symbol {
+    public $file;
+    public $name;
+    public $range;
+
+    abstract function fqn(): string;
 }

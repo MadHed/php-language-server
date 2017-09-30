@@ -44,30 +44,32 @@ foreach($files as $i => $filename) {
     $parseend = microtime(true);
     $collector->file->parseTime = $parseend-$parsestart;
 }
-
+$parser = null;
+$ast = null;
+$collector = null;
 
 $resolved = $unresolved = 0;
 foreach($repo->references as $ref) {
     if (\is_string($ref->target)) {
         echo $ref->target.' -> ';
         $cls = $repo
-            ->namespaces()
             ->files()
+            ->namespaces()
             ->classes()
             ->find(fqnEquals($ref->target));
 
         if (!$cls) {
             $cls = $repo
-            ->namespaces()
             ->files()
+            ->namespaces()
             ->interfaces()
             ->find(fqnEquals($ref->target));
         }
 
         if (!$cls) {
             $cls = $repo
-            ->namespaces()
             ->files()
+            ->namespaces()
             ->functions()
             ->find(fqnEquals($ref->target));
         }
@@ -76,7 +78,7 @@ foreach($repo->references as $ref) {
             echo 'OK';
         }
         else {
-            echo 'NOT FOUND @'.$ref->file->getName().':'.$ref->range->start->line.':'.$ref->range->start->character;
+            echo 'NOT FOUND @ '.$ref->file->name.':'.$ref->range->start->line.':'.$ref->range->start->character;
         }
 
         echo "\n";
