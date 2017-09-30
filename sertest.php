@@ -41,7 +41,8 @@ function serialize($value, $state = null) {
         return "d:$value;";
     }
     else if (\is_string($value)) {
-        return "s:".\strlen($value).":\"".$value."\";";
+        $len = \strlen($value);
+        return "s:$len:\"$value\";";
     }
     else if (\is_array($value)) {
         $str = "a:".\count($value).":{";
@@ -62,10 +63,10 @@ function serialize($value, $state = null) {
             $cls = \get_class($value);
             $str = "O:".\strlen($cls).":\"".$cls."\":";
             $ref = new \ReflectionClass($value);
-            $refs[] = $ref;
-            while($ref = $ref->getParentClass()) {
+            $nref = $ref;
+            do {
                 $refs[] = $ref;
-            }
+            } while($nref = $ref->getParentClass() && $nref != $ref && $ref = $nref);
 
             $numProps = 0;
             foreach($refs as $ref) {
@@ -83,27 +84,31 @@ function serialize($value, $state = null) {
                 $props = $ref->getProperties();
                 foreach($props as $prop) {
                     if ($prop->isStatic()) continue;
+                    $propName = $prop->getName();
                     $prop->setAccessible(true);
                     $state->id++;
                     if ($prop->isPrivate()) {
-                        $str .= serialize("\0".$className."\0".$prop->getName(), $state);
+                        $str .= serialize("\0$className\0$propName", $state);
                         $str .= serialize($prop->getValue($value), $state);
                     }
-                    else if (!isset($visitedProps[$prop->getName()])) {
+                    else if (!isset($visitedProps[$propName])) {
                         if ($prop->isProtected()) {
-                            $str .= serialize("\0*\0".$prop->getName(), $state);
+                            $str .= serialize("\0*\0$propName", $state);
                         }
                         else {
-                            $str .= serialize($prop->getName(), $state);
+                            $str .= serialize($propName, $state);
                         }
                         $str .= serialize($prop->getValue($value), $state);
-                        $visitedProps[$prop->getName()] = 1;
+                        $visitedProps[$propName] = 1;
                     }
                 }
             }
             $str .= "}";
             return $str;
         }
+    }
+    else {
+        return "N;";
     }
 }
 
