@@ -149,7 +149,8 @@ function unserialize($string, $state = null) {
         $start = $state->pos + 2;
         $number = 0;
         while ($string[$start] >= '0' && $string[$start] <= '9') {
-            $number = $number * 10 + ord($string[$start]) - 48;
+            $number *= 10;
+            $number += $string[$start];
             $start++;
         }
         $state->pos = $start + 2;
@@ -161,7 +162,8 @@ function unserialize($string, $state = null) {
         $start = $state->pos + 2;
         $number = 0;
         while ($string[$start] >= '0' && $string[$start] <= '9') {
-            $number = $number * 10 + ord($string[$start]) - 48;
+            $number *= 10;
+            $number += $string[$start];
             $start++;
         }
         $state->pos = $start + 1;
@@ -172,7 +174,8 @@ function unserialize($string, $state = null) {
         $start = $state->pos + 2;
         $number = 0;
         while ($string[$start] >= '0' && $string[$start] <= '9') {
-            $number = $number * 10 + ord($string[$start]) - 48;
+            $number *= 10;
+            $number += $string[$start];
             $start++;
         }
         $className = substr($string, $start + 2, $number);
@@ -187,7 +190,8 @@ function unserialize($string, $state = null) {
         $start = $state->pos + 2;
         $numProps = 0;
         while ($string[$start] >= '0' && $string[$start] <= '9') {
-            $numProps = $numProps * 10 + ord($string[$start]) - 48;
+            $numProps *= 10;
+            $numProps += $string[$start];
             $start++;
         }
 
@@ -227,7 +231,8 @@ function unserialize($string, $state = null) {
         $start = $state->pos + 2;
         $id = 0;
         while ($string[$start] >= '0' && $string[$start] <= '9') {
-            $id = $id * 10 + ord($string[$start]) - 48;
+            $id *= 10;
+            $id += $string[$start];
             $start++;
         }
         $state->pos = $start + 1;
@@ -242,7 +247,8 @@ function unserialize($string, $state = null) {
         $start = $state->pos + 2;
         $num = 0;
         while ($string[$start] >= '0' && $string[$start] <= '9') {
-            $num = $num * 10 + ord($string[$start]) - 48;
+            $num *= 10;
+            $num += $string[$start];
             $start++;
         }
         $state->pos = $start + 2;
@@ -260,14 +266,17 @@ function unserialize($string, $state = null) {
         $decs = 1;
         $decimals = false;
         while (($string[$start] >= '0' && $string[$start] <= '9') || $string[$start] === '.') {
-            $num = $num * 10 + ord($string[$start]) - 48;
-            $start++;
             if ($string[$start] === '.') {
                 $decimals = true;
             }
-            else if ($decimals) {
-                $decs *= 10;
+            else {
+                $num *= 10;
+                $num += $string[$start];
+                if ($decimals) {
+                    $decs *= 10;
+                }
             }
+            $start++;
         }
         $num /= $decs;
         $state->pos = $start + 1;
