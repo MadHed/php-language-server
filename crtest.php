@@ -64,7 +64,7 @@ foreach ($rii as $file) {
 }
 
 $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('.'));
-//$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('/mnt/e/Projekte/magento'));
+$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('/mnt/e/Projekte/magento'));
 //$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('src'));
 foreach ($rii as $file) {
     $filename = $file->getRealPath();
@@ -126,7 +126,7 @@ echo \count($files)." files in ".seconds($end-$start)."; $cached from cache; ".b
 \ini_set('serialize_precision', 20);
 
 $sestart = microtime(true);
-file_put_contents('phpls.cache', \serialize($repo));
+//file_put_contents('phpls.cache', \serialize($repo));
 $seend = microtime(true);
 
 echo "Serialized in ".seconds($seend-$sestart)."\n";
@@ -238,6 +238,9 @@ function serialize($value, $state = null) {
             $str .= "}";
             return $str;
         }
+    }
+    else {
+        return "N;";
     }
 }
 

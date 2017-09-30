@@ -7,6 +7,7 @@ require 'vendor/autoload.php';
 class SerializationState {
     public $id = 1;
     public $refs = [];
+    public $pos = 0;
     public function addRef($obj) {
         $this->refs[\spl_object_hash($obj)] = $this->id;
     }
@@ -106,22 +107,75 @@ function serialize($value, $state = null) {
     }
 }
 
-function unserialize($string) {
-}
+function unserialize($string, $state = null) {
+    if ($state === null) {
+        $state = new SerializationState();
+    }
 
-class Foo {
-    public $a;
-    public $b;
-    public $c;
-    public $r;
-    public function __construct() {
-        $this->r = $this;
+    $ch = $string[$state->pos];
+    if ($ch === 'N') { // N;
+        $state->pos += 2;
+        return null;
+    }
+    else if ($ch === 'b') { // b:1;
+        $state->pos += 3;
+        return $string[$state->pos - 1] === '1';
+    }
+    else if ($ch === 'i') { // i:1234;
+        $start = $state->pos + 2;
+        $end = $start + 1;
+        while (ord($string[$end]) >= 48 && ord($string[$end]) <= 57) {
+            $end++;
+        }
+        $state->pos = $end + 1;
+        return (int)substr($string, $start, $end - $start);
+    }
+    else if ($ch === 'd') { // d:123.456;
+        $start = $state->pos + 2;
+        $end = $start + 1;
+        while ((ord($string[$end]) >= 48 && ord($string[$end]) <= 57) || $string[$end] === '.') {
+            $end++;
+        }
+        $state->pos = $end + 1;
+        return (float)substr($string, $start, $end - $start);
+    }
+    else if ($ch === 's') { // s:5:"hello";
+        $start = $state->pos + 2;
+        $end = $start + 1;
+        while (ord($string[$end]) >= 48 && ord($string[$end]) <= 57) {
+            $end++;
+        }
+        $state->pos = $end + 2;
+        $num = (int)substr($string, $start, $end - $start);
+        $str = substr($string, $state->pos, $num);
+        $state->pos += $num + 2;
+        return $str;
+    }
+    else if ($ch === 'a') { // a:1{i:0;i:13;}
+        $arr = [];
+        $start = $state->pos + 2;
+        $end = $start + 1;
+        while (ord($string[$end]) >= 48 && ord($string[$end]) <= 57) {
+            $end++;
+        }
+        $num = (int)substr($string, $start, $end - $start);
+        $state->pos = $end + 2;
+        for($i=0;$i<$num;$i++) {
+            $k = unserialize($string, $state);
+            $v = unserialize($string, $state);
+            $arr[$k] = $v;
+        }
+        $state->pos++;
+        return $arr;
+    }
+    else if ($ch === 'O') { // O:3:"Foo":2:{s:1:"a";i:0;}
+        $obj = new \stdClass();
+        return $obj;
+    }
+    else {
+        return false;
     }
 }
-$val = [new Foo(), new Foo()];
 
-$a = \serialize($val);
-$b = serialize($val);
-echo "$a\n";
-echo "$b\n";
-var_dump($a === $b);
+var_dump(unserialize('O:3:"Foo":1:{s:1:"a";i:0;}'));
+//var_dump(unserialize(file_get_contents('phpls.cache')));
