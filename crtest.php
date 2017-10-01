@@ -82,7 +82,8 @@ foreach($files as $i => $filename) {
     echo "\r".(int)($i*100/count($files))."%";
     flush();
     $uri = pathToUri($filename);
-    if (isset($repo->files[$uri]) && hash_file('sha256', $filename) === $repo->files[$uri]->hash()) {
+    $src = file_get_contents($filename);
+    if (isset($repo->files[$uri]) && hash('sha256', $src) === $repo->files[$uri]->hash()) {
         $cached++;
         continue;
     }
@@ -90,7 +91,6 @@ foreach($files as $i => $filename) {
     echo " Parsing $filename\n";
 
     $parsestart = microtime(true);
-    $src = file_get_contents($filename);
     $ast = $parser->parseSourceFile($src, $uri);
     $collector = new Collector($repo, $uri, $ast);
     $collector->iterate($ast);

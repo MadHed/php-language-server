@@ -242,23 +242,14 @@ function unserialize($string, $state = null) {
         $decs = 1;
         $decimals = false;
         $start = $state->pos + 2;
+        $end = $start;
         while (true) {
-            $ch = $string[$start];
-            if (($ch < '0' || $ch > '9') && $ch !== '.') break;
-            if ($ch === '.') {
-                $decimals = true;
-            }
-            else {
-                $num *= 10;
-                $num += $ch;
-                if ($decimals) {
-                    $decs *= 10;
-                }
-            }
-            $start++;
+            $ch = $string[$end];
+            if (($ch < '0' || $ch > '9') && $ch !== '.' && $ch !== '-' && $ch !== 'E') break;
+            $end++;
         }
-        $num /= $decs;
-        $state->pos = $start + 1;
+        $num = (float)substr($string, $start, $end - $start);
+        $state->pos = $end + 1;
         return $num;
     }
     if ($ch === 'b') { // b:1;
