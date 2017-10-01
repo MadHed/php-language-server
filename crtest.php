@@ -95,7 +95,7 @@ foreach($files as $i => $filename) {
     $collector = new Collector($repo, $uri, $ast);
     $collector->iterate($ast);
     $parseend = microtime(true);
-    $collector->file->parseTime = 0;//$parseend-$parsestart;
+    $collector->file->parseTime = $parseend-$parsestart;
 }
 
 $parser = null;

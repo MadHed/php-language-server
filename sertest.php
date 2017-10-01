@@ -259,6 +259,7 @@ function unserialize($string, $state = null) {
         $num = 0;
         $decs = 1;
         $decimals = false;
+        $start = $state->pos + 2;
         while (true) {
             $ch = $string[$start];
             if (($ch < '0' || $ch > '9') && $ch !== '.') break;
@@ -272,6 +273,7 @@ function unserialize($string, $state = null) {
                     $decs *= 10;
                 }
             }
+            $start++;
         }
         $num /= $decs;
         $state->pos = $start + 1;
