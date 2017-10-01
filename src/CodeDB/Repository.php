@@ -53,7 +53,7 @@ abstract class IteratorBase implements \Iterator {
     }
 
     public function key() {
-        return $this->generator->getKey();
+        return $this->generator->key();
     }
 
     public function next() {
@@ -232,6 +232,11 @@ class ArrayIterator extends IteratorBase {
 }
 
 class MultiIterator extends IteratorBase {
+
+    public function __construct(...$sources) {
+        parent::__construct($sources);
+    }
+
     public function gen() {
         foreach($this->base as $el) {
             yield from $el;

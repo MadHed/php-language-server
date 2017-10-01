@@ -46,7 +46,7 @@ $start = \microtime(true);
 
 if (file_exists('phpls.cache')) {
     $usstart = microtime(true);
-    $repo = unserialize(file_get_contents('phpls.cache'));
+    $repo = \unserialize(file_get_contents('phpls.cache'));
     $usend = microtime(true);
     echo "Unserialized in ".seconds($usend-$usstart)."\n";
 }
@@ -130,14 +130,14 @@ $searchend = microtime(true);
 echo "Search finished in ".seconds($searchend-$searchstart)."\n";
 
 echo count($repo->references)." references. Resolved: $resolved, Unresolved: $unresolved\n";
-echo \count($files)." files in ".seconds($end-$start)."; $cached from cache; ".bytes(\memory_get_usage())." allocated\n";
+echo \count($files)." files in ".seconds($end-$start)."; $cached from cache; ".bytes(\memory_get_usage(true))." allocated\n";
 
 $sestart = microtime(true);
-file_put_contents('phpls.cache', serialize($repo));
+file_put_contents('phpls.cache', \serialize($repo));
 $seend = microtime(true);
 
 echo "Serialized in ".seconds($seend-$sestart)."\n";
-echo "Memory used after serializing: ".bytes(memory_get_usage())."\n";
+echo "Memory used after serializing: ".bytes(memory_get_usage(true))."\n";
 
 global $totals;
 var_dump($totals);

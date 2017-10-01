@@ -200,13 +200,13 @@ class Collector {
                     $var->loc = 1;
                 }
                 else {
-                    $start = $node->getStart();
+                    /*$start = $node->getStart();
                     $length = $node->getEndPosition() - $start;
                     $this->repo->references[] = new Reference(
                         $this->file,
                         PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
                         $this->scope[$name]
-                    );
+                    );*/
                 }
             }
         }

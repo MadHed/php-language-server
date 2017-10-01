@@ -14,7 +14,8 @@ use LanguageServer\Protocol\{
     ReferenceInformation,
     DependencyReference,
     Location,
-    MessageType
+    MessageType,
+    SymbolKind
 };
 use Sabre\Event\Promise;
 use function Sabre\Event\coroutine;
@@ -57,6 +58,67 @@ class Workspace
     public function symbol(string $query): Promise
     {
         return coroutine(function () use ($query) {
+            $symbols = (
+                new \LanguageServer\CodeDB\MultiIterator(
+                    $this->db->files()->namespaces(),
+                    $this->db->files()->namespaces()->classes(),
+                    $this->db->files()->namespaces()->classes()->symbols()
+                ));
+
+            $symbols = $symbols->filter(\LanguageServer\CodeDB\nameContains($query));
+            $symbols = $symbols->limit(100);
+
+            yield;
+            $results = [];
+            foreach($symbols as $symbol) {
+                $file = $symbol;
+                while ($file && !$file instanceof \LanguageServer\CodeDB\File) {
+                    $file = $file->parent;
+                }
+                if (!$file) continue;
+
+                $kind = SymbolKind::CONSTANT;
+                if ($symbol instanceof \LanguageServer\CodeDB\Class_) {
+                    $kind = SymbolKind::CLASS_;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Interface_) {
+                    $kind = SymbolKind::INTERFACE;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Function_) {
+                    $kind = SymbolKind::FUNCTION;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Variable) {
+                    $kind = SymbolKind::VARIABLE;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\File) {
+                    $kind = SymbolKind::FILE;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Namespace_) {
+                    $kind = SymbolKind::NAMESPACE;
+                }
+
+                $results[] = new \LanguageServer\Protocol\SymbolInformation(
+                    $symbol->name,
+                    $kind,
+                    new \LanguageServer\Protocol\Location(
+                        $file->name,
+                        new \LanguageServer\Protocol\Range(
+                            new \LanguageServer\Protocol\Position(
+                                $symbol->range->start->line,
+                                $symbol->range->start->character
+                            ),
+                            new \LanguageServer\Protocol\Position(
+                                $symbol->range->end->line,
+                                $symbol->range->end->character
+                            )
+                        )
+                    ),
+                    $symbol->parent ? $symbol->parent->fqn() : ''
+                );
+            }
+            return $results;
+        });
+        /*return coroutine(function () use ($query) {
             // Wait until indexing for definitions finished
             if (!$this->sourceIndex->isStaticComplete()) {
                 yield waitForEvent($this->sourceIndex, 'static-complete');
@@ -68,7 +130,7 @@ class Workspace
                 }
             }
             return $symbols;
-        });
+        });*/
     }
 
     /**

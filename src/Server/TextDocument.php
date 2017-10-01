@@ -21,7 +21,8 @@ use LanguageServer\Protocol\{
     TextDocumentIdentifier,
     TextDocumentItem,
     VersionedTextDocumentIdentifier,
-    CompletionContext
+    CompletionContext,
+    SymbolKind
 };
 use Microsoft\PhpParser;
 use Microsoft\PhpParser\Node;
@@ -71,21 +72,40 @@ class TextDocument
      */
     public function documentSymbol(TextDocumentIdentifier $textDocument): Promise
     {
-        fwrite(STDERR, $textDocument->uri);
         return coroutine(function () use ($textDocument) {
-            $symbols = $this->db
-                ->files()
-                ->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))
-                ->namespaces()
-                ->classes()
-                ->symbols();
+            $symbols = (
+                new \LanguageServer\CodeDB\MultiIterator(
+                    $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces(),
+                    $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces()->classes(),
+                    $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces()->classes()->symbols()
+                ));
 
             yield;
             $results = [];
             foreach($symbols as $symbol) {
+                $kind = SymbolKind::CONSTANT;
+                if ($symbol instanceof \LanguageServer\CodeDB\Class_) {
+                    $kind = SymbolKind::CLASS_;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Interface_) {
+                    $kind = SymbolKind::INTERFACE;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Function_) {
+                    $kind = SymbolKind::FUNCTION;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Variable) {
+                    $kind = SymbolKind::VARIABLE;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\File) {
+                    $kind = SymbolKind::FILE;
+                }
+                else if ($symbol instanceof \LanguageServer\CodeDB\Namespace_) {
+                    $kind = SymbolKind::NAMESPACE;
+                }
+
                 $results[] = new \LanguageServer\Protocol\SymbolInformation(
                     $symbol->name,
-                    0,
+                    $kind,
                     new \LanguageServer\Protocol\Location(
                         $textDocument->uri,
                         new \LanguageServer\Protocol\Range(
@@ -99,7 +119,7 @@ class TextDocument
                             )
                         )
                     ),
-                    $symbol->parent->fqn()
+                    $symbol->parent ? $symbol->parent->fqn() : ''
                 );
             }
             return $results;
