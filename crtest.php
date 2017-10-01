@@ -126,9 +126,6 @@ $end = \microtime(true);
 
 $searchstart = microtime(true);
 
-echo $repo->files()->select('loc')->avg();
-echo "\n";
-
 $searchend = microtime(true);
 echo "Search finished in ".seconds($searchend-$searchstart)."\n";
 
