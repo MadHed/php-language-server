@@ -44,35 +44,7 @@ class TextDocument
      */
     protected $client;
 
-    /**
-     * @var Project
-     */
-    protected $project;
-
-    /**
-     * @var DefinitionResolver
-     */
-    protected $definitionResolver;
-
-    /**
-     * @var CompletionProvider
-     */
-    protected $completionProvider;
-
-    /**
-     * @var ReadableIndex
-     */
-    protected $index;
-
-    /**
-     * @var \stdClass|null
-     */
-    protected $composerJson;
-
-    /**
-     * @var \stdClass|null
-     */
-    protected $composerLock;
+    private $db;
 
     /**
      * @param PhpDocumentLoader $documentLoader
@@ -83,20 +55,11 @@ class TextDocument
      * @param \stdClass $composerLock
      */
     public function __construct(
-        PhpDocumentLoader $documentLoader,
-        DefinitionResolver $definitionResolver,
         LanguageClient $client,
-        ReadableIndex $index,
-        \stdClass $composerJson = null,
-        \stdClass $composerLock = null
+        \LanguageServer\CodeDB\Repository $db
     ) {
-        $this->documentLoader = $documentLoader;
         $this->client = $client;
-        $this->definitionResolver = $definitionResolver;
-        $this->completionProvider = new CompletionProvider($this->definitionResolver, $index);
-        $this->index = $index;
-        $this->composerJson = $composerJson;
-        $this->composerLock = $composerLock;
+        $this->db = $db;
     }
 
     /**
@@ -108,13 +71,45 @@ class TextDocument
      */
     public function documentSymbol(TextDocumentIdentifier $textDocument): Promise
     {
-        return $this->documentLoader->getOrLoad($textDocument->uri)->then(function (PhpDocument $document) {
+        fwrite(STDERR, $textDocument->uri);
+        return coroutine(function () use ($textDocument) {
+            $symbols = $this->db
+                ->files()
+                ->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))
+                ->namespaces()
+                ->symbols();
+
+            yield;
+            $results = [];
+            foreach($symbols as $symbol) {
+                $results[] = new \LanguageServer\Protocol\SymbolInformation(
+                    $symbol->name,
+                    0,
+                    new \LanguageServer\Protocol\Location(
+                        $textDocument->uri,
+                        new \LanguageServer\Protocol\Range(
+                            new \LanguageServer\Protocol\Position(
+                                $symbol->range->start->line,
+                                $symbol->range->start->character
+                            ),
+                            new \LanguageServer\Protocol\Position(
+                                $symbol->range->end->line,
+                                $symbol->range->end->character
+                            )
+                        )
+                    ),
+                    $symbol->parent->fqn()
+                );
+            }
+            return $results;
+        });
+        /* return $this->documentLoader->getOrLoad($textDocument->uri)->then(function (PhpDocument $document) {
             $symbols = [];
             foreach ($document->getDefinitions() as $fqn => $definition) {
                 $symbols[] = $definition->symbolInformation;
             }
             return $symbols;
-        });
+        }); */
     }
 
     /**
@@ -127,10 +122,11 @@ class TextDocument
      */
     public function didOpen(TextDocumentItem $textDocument)
     {
-        $document = $this->documentLoader->open($textDocument->uri, $textDocument->text);
+        return coroutine(function () {yield;});
+        /* $document = $this->documentLoader->open($textDocument->uri, $textDocument->text);
         if (!isVendored($document, $this->composerJson)) {
             $this->client->textDocument->publishDiagnostics($textDocument->uri, $document->getDiagnostics());
-        }
+        } */
     }
 
     /**
@@ -142,9 +138,10 @@ class TextDocument
      */
     public function didChange(VersionedTextDocumentIdentifier $textDocument, array $contentChanges)
     {
-        $document = $this->documentLoader->get($textDocument->uri);
+        return coroutine(function () {yield;});
+        /* $document = $this->documentLoader->get($textDocument->uri);
         $document->updateContent($contentChanges[0]->text);
-        $this->client->textDocument->publishDiagnostics($textDocument->uri, $document->getDiagnostics());
+        $this->client->textDocument->publishDiagnostics($textDocument->uri, $document->getDiagnostics()); */
     }
 
     /**
@@ -157,7 +154,23 @@ class TextDocument
      */
     public function didClose(TextDocumentIdentifier $textDocument)
     {
-        $this->documentLoader->close($textDocument->uri);
+        return coroutine(function () {yield;});
+        /* $this->documentLoader->close($textDocument->uri); */
+    }
+
+    /**
+     * The document formatting request is sent from the server to the client to format a whole document.
+     *
+     * @param TextDocumentIdentifier $textDocument The document to format
+     * @param FormattingOptions $options The format options
+     * @return Promise <TextEdit[]>
+     */
+    public function formatting(TextDocumentIdentifier $textDocument, FormattingOptions $options)
+    {
+        return coroutine(function () {yield;});
+        /* return $this->documentLoader->getOrLoad($textDocument->uri)->then(function (PhpDocument $document) {
+            return $document->getFormattedText();
+        }); */
     }
 
     /**
@@ -172,7 +185,8 @@ class TextDocument
         TextDocumentIdentifier $textDocument,
         Position $position
     ): Promise {
-        return coroutine(function () use ($textDocument, $position) {
+        return coroutine(function () {yield;});
+        /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             $node = $document->getNodeAtPosition($position);
             if ($node === null) {
@@ -234,7 +248,7 @@ class TextDocument
                 }
             }
             return $locations;
-        });
+        }); */
     }
 
     /**
@@ -247,7 +261,8 @@ class TextDocument
      */
     public function definition(TextDocumentIdentifier $textDocument, Position $position): Promise
     {
-        return coroutine(function () use ($textDocument, $position) {
+        return coroutine(function () {yield;});
+        /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             $node = $document->getNodeAtPosition($position);
             if ($node === null) {
@@ -276,7 +291,7 @@ class TextDocument
                 return [];
             }
             return $def->symbolInformation->location;
-        });
+        }); */
     }
 
     /**
@@ -288,7 +303,8 @@ class TextDocument
      */
     public function hover(TextDocumentIdentifier $textDocument, Position $position): Promise
     {
-        return coroutine(function () use ($textDocument, $position) {
+        return coroutine(function () {yield;});
+        /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             // Find the node under the cursor
             $node = $document->getNodeAtPosition($position);
@@ -321,7 +337,7 @@ class TextDocument
                 $contents[] = $def->documentation;
             }
             return new Hover($contents, $range);
-        });
+        }); */
     }
 
     /**
@@ -341,10 +357,11 @@ class TextDocument
      */
     public function completion(TextDocumentIdentifier $textDocument, Position $position, CompletionContext $context = null): Promise
     {
-        return coroutine(function () use ($textDocument, $position, $context) {
+        return coroutine(function () {yield;});
+        /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
-            return $this->completionProvider->provideCompletion($document, $position, $context);
-        });
+            return $this->completionProvider->provideCompletion($document, $position);
+        }); */
     }
 
     /**
@@ -361,7 +378,8 @@ class TextDocument
      */
     public function xdefinition(TextDocumentIdentifier $textDocument, Position $position): Promise
     {
-        return coroutine(function () use ($textDocument, $position) {
+        return coroutine(function () {yield;});
+        /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             $node = $document->getNodeAtPosition($position);
             if ($node === null) {
@@ -397,6 +415,6 @@ class TextDocument
             }
             $descriptor = new SymbolDescriptor($def->fqn, new PackageDescriptor($packageName));
             return [new SymbolLocationInformation($descriptor, $def->symbolInformation->location)];
-        });
+        }); */
     }
 }

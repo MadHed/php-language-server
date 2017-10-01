@@ -30,32 +30,7 @@ class Workspace
      */
     public $client;
 
-    /**
-     * The symbol index for the workspace
-     *
-     * @var ProjectIndex
-     */
-    private $projectIndex;
-
-    /**
-     * @var DependenciesIndex
-     */
-    private $dependenciesIndex;
-
-    /**
-     * @var Index
-     */
-    private $sourceIndex;
-
-    /**
-     * @var \stdClass
-     */
-    public $composerLock;
-
-    /**
-     * @var PhpDocumentLoader
-     */
-    public $documentLoader;
+    private $db;
 
     /**
      * @param LanguageClient    $client            LanguageClient instance used to signal updated results
@@ -65,15 +40,12 @@ class Workspace
      * @param \stdClass         $composerLock      The parsed composer.lock of the project, if any
      * @param PhpDocumentLoader $documentLoader    PhpDocumentLoader instance to load documents
      */
-    public function __construct(LanguageClient $client, ProjectIndex $projectIndex, DependenciesIndex $dependenciesIndex, Index $sourceIndex, \stdClass $composerLock = null, PhpDocumentLoader $documentLoader, \stdClass $composerJson = null)
-    {
+    public function __construct(
+        LanguageClient $client,
+        \LanguageServer\CodeDB\Repository $db
+    ) {
         $this->client = $client;
-        $this->sourceIndex = $sourceIndex;
-        $this->projectIndex = $projectIndex;
-        $this->dependenciesIndex = $dependenciesIndex;
-        $this->composerLock = $composerLock;
-        $this->documentLoader = $documentLoader;
-        $this->composerJson = $composerJson;
+        $this->db = $db;
     }
 
     /**

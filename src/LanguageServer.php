@@ -9,7 +9,8 @@ use LanguageServer\Protocol\{
     TextDocumentSyncKind,
     Message,
     InitializeResult,
-    CompletionOptions
+    CompletionOptions,
+    MessageType
 };
 use LanguageServer\FilesFinder\{FilesFinder, ClientFilesFinder, FileSystemFilesFinder};
 use LanguageServer\ContentRetriever\{ContentRetriever, ClientContentRetriever, FileSystemContentRetriever};
@@ -20,6 +21,9 @@ use Sabre\Event\Promise;
 use function Sabre\Event\coroutine;
 use Throwable;
 use Webmozart\PathUtil\Path;
+
+use function LanguageServer\pathToUri;
+use function LanguageServer\uriToPath;
 
 class LanguageServer extends AdvancedJsonRpc\Dispatcher
 {
@@ -106,6 +110,16 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
     protected $definitionResolver;
 
     /**
+     * @var CodeDB
+     */
+    private $db;
+
+    /**
+     * @var string|null
+     */
+    private $rootPath;
+
+    /**
      * @param ProtocolReader  $reader
      * @param ProtocolWriter $writer
      */
@@ -154,6 +168,7 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
         });
         $this->protocolWriter = $writer;
         $this->client = new LanguageClient($reader, $writer);
+        $this->window = $this->client->window;
     }
 
     /**
@@ -166,6 +181,8 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
      */
     public function initialize(ClientCapabilities $capabilities, string $rootPath = null, int $processId = null): Promise
     {
+        $this->rootPath = $rootPath;
+
         return coroutine(function () use ($capabilities, $rootPath, $processId) {
 
             if ($capabilities->xfilesProvider) {
@@ -180,82 +197,62 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
                 $this->contentRetriever = new FileSystemContentRetriever;
             }
 
-            $dependenciesIndex = new DependenciesIndex;
-            $sourceIndex = new Index;
-            $this->projectIndex = new ProjectIndex($sourceIndex, $dependenciesIndex, $this->composerJson);
-            $stubsIndex = StubsIndex::read();
-            $this->globalIndex = new GlobalIndex($stubsIndex, $this->projectIndex);
-
-            // The DefinitionResolver should look in stubs, the project source and dependencies
-            $this->definitionResolver = new DefinitionResolver($this->globalIndex);
-
-            $this->documentLoader = new PhpDocumentLoader(
+            /*$this->documentLoader = new PhpDocumentLoader(
                 $this->contentRetriever,
                 $this->projectIndex,
                 $this->definitionResolver
-            );
+            );*/
 
+            $this->db = new CodeDB\Repository();
+            fwrite(STDERR, getcwd());
             if ($rootPath !== null) {
-                yield $this->beforeIndex($rootPath);
-
-                // Find composer.json
-                if ($this->composerJson === null) {
-                    $composerJsonFiles = yield $this->filesFinder->find(Path::makeAbsolute('**/composer.json', $rootPath));
-                    sortUrisLevelOrder($composerJsonFiles);
-
-                    if (!empty($composerJsonFiles)) {
-                        $this->composerJson = json_decode(yield $this->contentRetriever->retrieve($composerJsonFiles[0]));
+                if (file_exists('phpls.cache')) {
+                    $this->window->logMessage(MessageType::INFO, 'Cache DB found. Loading...');
+                    yield;
+                    try {
+                        $db = unserialize(file_get_contents('phpls.cache'));
+                        $this->window->logMessage(MessageType::INFO, 'Complete');
+                        yield;
+                        if ($db) {
+                            $this->db = $db;
+                        }
+                    }
+                    catch (\Exception $e) {
+                        $this->window->logMessage(MessageType::ERROR, 'Error while loading cache: ' . $e->getMessage());
+                        yield;
                     }
                 }
 
-                // Find composer.lock
-                if ($this->composerLock === null) {
-                    $composerLockFiles = yield $this->filesFinder->find(Path::makeAbsolute('**/composer.lock', $rootPath));
-                    sortUrisLevelOrder($composerLockFiles);
+                $this->window->logMessage(MessageType::INFO, 'Checking project for modifications...');
+                yield;
 
-                    if (!empty($composerLockFiles)) {
-                        $this->composerLock = json_decode(yield $this->contentRetriever->retrieve($composerLockFiles[0]));
-                    }
-                }
+                $parser = new \Microsoft\PhpParser\Parser();
+                $this->filesFinder->find('**/*.php')->then(function($uri) use ($parser) {
 
-                $cache = $capabilities->xcacheProvider ? new ClientCache($this->client) : new FileSystemCache;
+                    $this->contentRetriever->retrieve($uri)->then(function($src) {
+                        if (isset($this->db->files[$uri]) && hash('sha256', $src) === $this->db->files[$uri]->hash()) {
+                            return;
+                        }
 
-                // Index in background
-                $indexer = new Indexer(
-                    $this->filesFinder,
-                    $rootPath,
-                    $this->client,
-                    $cache,
-                    $dependenciesIndex,
-                    $sourceIndex,
-                    $this->documentLoader,
-                    $this->composerLock,
-                    $this->composerJson
-                );
-                $indexer->index()->otherwise('\\LanguageServer\\crash');
+                        $parsestart = microtime(true);
+                        $ast = $parser->parseSourceFile($src, $uri);
+                        $collector = new CodeDB\Collector($this->db, $uri, $ast);
+                        $collector->iterate($ast);
+                        $parseend = microtime(true);
+                        $collector->file->parseTime = $parseend-$parsestart;
+                    });
+                });
+
+                $this->window->logMessage(MessageType::INFO, 'Complete');
+                yield;
             }
-
 
             if ($this->textDocument === null) {
-                $this->textDocument = new Server\TextDocument(
-                    $this->documentLoader,
-                    $this->definitionResolver,
-                    $this->client,
-                    $this->globalIndex,
-                    $this->composerJson,
-                    $this->composerLock
-                );
+                $this->textDocument = new Server\TextDocument($this->client, $this->db);
             }
+
             if ($this->workspace === null) {
-                $this->workspace = new Server\Workspace(
-                    $this->client,
-                    $this->projectIndex,
-                    $dependenciesIndex,
-                    $sourceIndex,
-                    $this->composerLock,
-                    $this->documentLoader,
-                    $this->composerJson
-                );
+                $this->workspace = new Server\Workspace($this->client, $this->db);
             }
 
             $serverCapabilities = new ServerCapabilities();
@@ -293,6 +290,9 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
      */
     public function shutdown()
     {
+        if ($this->rootPath !== null) {
+            file_put_contents('phpls.cache', serialize($this->db));
+        }
         unset($this->project);
     }
 
