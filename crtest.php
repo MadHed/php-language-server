@@ -59,17 +59,17 @@ $parser = new Parser();
 
 $files = array();
 
-/* $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('./vendor/jetbrains/phpstorm-stubs'));
+$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('./vendor/jetbrains/phpstorm-stubs'));
 foreach ($rii as $file) {
     $filename = $file->getRealPath();
     if ($file->isFile() && $file->isReadable() && strtolower($file->getExtension()) === 'php'){
         $files[] = $filename;
     }
-} */
+}
 
-//$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('.'));
+$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('.'));
 //$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('/mnt/e/Projekte/magento'));
-$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('src'));
+//$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('src'));
 foreach ($rii as $file) {
     $filename = $file->getRealPath();
     if ($file->isFile() && $file->isReadable() && strtolower($file->getExtension()) === 'php'){

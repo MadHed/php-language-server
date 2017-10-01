@@ -9,8 +9,6 @@ class SerializationState {
     public $refs = [];
     public $objs = [];
     public $pos = 0;
-    public $reflClasses = [];
-    public $reflProperties = [];
 }
 
 function serialize($value, $state = null) {
