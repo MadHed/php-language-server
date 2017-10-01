@@ -11,34 +11,6 @@ class SerializationState {
     public $pos = 0;
     public $reflClasses = [];
     public $reflProperties = [];
-
-    public function addRef($obj) {
-        $this->refs[\spl_object_hash($obj)] = $this->id;
-    }
-
-    public function getRef($obj) {
-        $hash = \spl_object_hash($obj);
-        if (isset($this->refs[$hash])) {
-            return $this->refs[$hash];
-        }
-        return -1;
-    }
-
-    public function getReflectionClass($cls) {
-        return $this->reflClasses[$cls] ?? $this->reflClasses[$cls] = new \ReflectionClass($cls);
-    }
-
-    public function getReflectionProperty($cls, $prop) {
-        $p = $this->reflProperties[$cls][$prop] ?? $this->getReflectionClass($cls)->getProperty($prop);
-        if (!isset($this->reflProperties[$cls])) {
-            $this->reflProperties[$cls] = [];
-        }
-        if (!isset($this->reflProperties[$cls][$prop])) {
-            $p->setAccessible(true);
-            $this->reflProperties[$cls][$prop] = $p;
-        }
-        return $p;
-    }
 }
 
 function serialize($value, $state = null) {
@@ -68,19 +40,18 @@ function serialize($value, $state = null) {
     else if (\is_array($value)) {
         $str = "a:".\count($value).":{";
         foreach($value as $k => $v) {
-            $str .= serialize($k, $state);
             $state->id++;
-            $str .= serialize($v, $state);
+            $str .= serialize($k, $state) . serialize($v, $state);
         }
         return $str . "}";
     }
     else if (\is_object($value)) {
-        $id = $state->getRef($value);
-        if ($id >= 0) {
+        $id = $state->refs[\spl_object_hash($value)] ?? 0;
+        if ($id > 0) {
             return "r:$id;";
         }
         else {
-            $state->addRef($value);
+            $state->refs[\spl_object_hash($value)] = $state->id;
             $ref = new \ReflectionClass($value);
             $cls = $ref->getName();
             $nref = $ref;
@@ -110,17 +81,15 @@ function serialize($value, $state = null) {
                     $prop->setAccessible(true);
                     $state->id++;
                     if ($prop->isPrivate()) {
-                        $str .= serialize("\0$className\0$propName", $state);
-                        $str .= serialize($prop->getValue($value), $state);
+                        $str .= serialize("\0$className\0$propName", $state) . serialize($prop->getValue($value), $state);
                     }
                     else if (!isset($visitedProps[$propName])) {
                         if ($prop->isProtected()) {
-                            $str .= serialize("\0*\0$propName", $state);
+                            $str .= serialize("\0*\0$propName", $state) . serialize($prop->getValue($value), $state);
                         }
                         else {
-                            $str .= serialize($propName, $state);
+                            $str .= serialize($propName, $state) . serialize($value->$propName, $state);
                         }
-                        $str .= serialize($prop->getValue($value), $state);
                         $visitedProps[$propName] = 1;
                     }
                 }
@@ -201,7 +170,7 @@ function unserialize($string, $state = null) {
         $className = substr($string, $start + 2, $number);
         $state->pos = $start + $number + 2;
 
-        $refl = $state->getReflectionClass($className);
+        $refl = new \ReflectionClass($className);
 
         $obj = $refl->newInstanceWithoutConstructor();
 
@@ -227,7 +196,7 @@ function unserialize($string, $state = null) {
 
             if ($k0 === "\0" && $k[1] === '*') {
                 $k = substr($k, 3);
-                $prop = $state->getReflectionProperty($className, $k);
+                $prop = new \ReflectionClass($className, $k);
                 $prop->setValue($obj, $v);
             }
             else if ($k0 === "\0") {
@@ -235,7 +204,7 @@ function unserialize($string, $state = null) {
                 $cls = substr($k, 1, $z - 1);
                 $k = substr($k, $z + 1);
 
-                $refl2 = $state->getReflectionClass($cls);
+                $refl2 = new \ReflectionClass($cls);
                 $prop = $refl2->getProperty($k);
                 $prop->setAccessible(true);
                 $prop->setValue($obj, $v);
