@@ -195,6 +195,7 @@ function unserialize($string, $state = null) {
             if ($k0 === "\0" && $k[1] === '*') { // protected
                 $k = substr($k, 3);
                 $prop = new \ReflectionClass($className, $k);
+                $prop->setAccessible(true);
                 $prop->setValue($obj, $v);
             }
             else if ($k0 === "\0") { // private
