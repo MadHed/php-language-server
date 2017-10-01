@@ -101,19 +101,6 @@ class Indexer
     {
         return coroutine(function () {
 
-            $cache = $this->rootPath.'/phpls.cache';
-            if (file_exists($cache) && is_readable($cache)) {
-                try {
-                    $db = \unserialize(file_get_contents($cache));
-                    \gc_collect_cycles();
-                    if ($db) {
-                        $this->db->from($db);
-                    }
-                }
-                catch (\Exception $e) {
-                }
-            }
-
             $pattern = Path::makeAbsolute('**/*.php', $this->rootPath);
             $uris = yield $this->filesFinder->find($pattern);
 
@@ -152,11 +139,28 @@ class Indexer
     private function indexFiles(array $files): Promise
     {
         return coroutine(function () use ($files) {
+            $cache = $this->rootPath.'/phpls.cache';
+            if (file_exists($cache) && is_readable($cache)) {
+                try {
+                    $this->client->window->logMessage(MessageType::LOG, "Loading symbol cache");
+                    yield timeout();
+                    $db = \unserialize(file_get_contents($cache));
+                    \gc_collect_cycles();
+                    if ($db) {
+                        $this->db->from($db);
+                    }
+                }
+                catch (\Exception $e) {
+                    $this->client->window->logMessage(MessageType::LOG, "Error loading cache: {$e->getMessage()}");
+                }
+            }
+
             foreach ($files as $i => $uri) {
                 // Give LS to the chance to handle requests while indexing
                 yield timeout();
                 $contents = yield $this->documentLoader->retrieve($uri);
                 if (isset($this->db->files[$uri]) && \hash('sha256', $contents) === $this->db->files[$uri]->hash()) {
+                    $this->client->window->logMessage(MessageType::LOG, "$uri not changed");
                     continue;
                 }
                 $this->client->window->logMessage(MessageType::LOG, "Parsing $uri");
@@ -165,6 +169,10 @@ class Indexer
                 $collector = new \LanguageServer\CodeDB\Collector($this->db, $uri, $ast);
                 $collector->iterate($ast);
             }
+
+            $this->client->window->logMessage(MessageType::LOG, "Resolving references");
+            $this->db->resolveReferences();
+            $this->client->window->logMessage(MessageType::LOG, "Resolved references.");
 
             $cache = $this->rootPath.'/phpls.cache';
             file_put_contents($cache, \serialize($this->db));

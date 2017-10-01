@@ -13,7 +13,8 @@ use Microsoft\PhpParser\Node\{
     SourceFileNode,
     MethodDeclaration,
     PropertyDeclaration,
-    Parameter
+    Parameter,
+    QualifiedName
 };
 
 use Microsoft\PhpParser\Node\Statement\{
@@ -21,6 +22,10 @@ use Microsoft\PhpParser\Node\Statement\{
     ClassDeclaration,
     InterfaceDeclaration,
     FunctionDeclaration
+};
+
+use Microsoft\PhpParser\Node\Expression\{
+    ObjectCreationExpression
 };
 
 class Collector {
@@ -42,7 +47,6 @@ class Collector {
         $this->src = $src;
         $this->file = new File($filename, $src->fileContents);
         $range = PositionUtilities::getRangeFromPositionInFile($src->getStart(), $src->getEndPosition() - $src->getStart(), $src);
-        $this->file->loc = $range->end->line - $range->start->line + 1;
         $this->file->range = $range;
         $repo->files[$filename] = $this->file;
     }
@@ -82,7 +86,9 @@ class Collector {
     private function getNamespace() {
         if ($this->namespace === null) {
             if (!isset($this->file->children[''])) {
-                $this->file->addChild(new Namespace_(''));
+                $ns = new Namespace_('');
+                $ns->range = PositionUtilities::getRangeFromPositionInFile(0, strlen($this->src->fileContents), $this->src);
+                $this->file->addChild($ns);
             }
             $this->namespace = $this->file->children[''];
         }
@@ -101,7 +107,6 @@ class Collector {
             }
             $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
             $this->namespace->range = $range;
-            $this->namespace->loc += $range->end->line - $range->start->line + 1;
         }
         else if ($node instanceof ClassDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
@@ -111,7 +116,6 @@ class Collector {
                 $this->repo->fqnMap[$this->currentClass->fqn()] = $this->currentClass;
                 $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
                 $this->currentClass->range = $range;
-                $this->currentClass->loc = $range->end->line - $range->start->line + 1;
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
@@ -147,7 +151,6 @@ class Collector {
                 $this->repo->fqnMap[$this->currentInterface->fqn()] = $this->currentInterface;
                 $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
                 $this->currentInterface->range = $range;
-                $this->currentInterface->loc = $range->end->line - $range->start->line + 1;
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
@@ -173,7 +176,6 @@ class Collector {
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
                 $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
                 $this->currentFunction->range = $range;
-                $this->currentFunction->loc = $range->end->line - $range->start->line + 1;
             }
         }
         else if ($node instanceof MethodDeclaration) {
@@ -184,44 +186,63 @@ class Collector {
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
                 $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
                 $this->currentFunction->range = $range;
-                $this->currentFunction->loc = $range->end->line - $range->start->line + 1;
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
             $name = $node->getName();
             if ($name) {
-                if (!\array_key_exists($name, $this->scope)) {
-                    $var = new Variable($name);
-                    $this->scope[$name] = $var;
-                    $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
-                    $target->addChild($var);
-                    $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
-                    $var->range = $range;
-                    $var->loc = 1;
-                }
-                else {
-                    /*$start = $node->getStart();
-                    $length = $node->getEndPosition() - $start;
-                    $this->repo->references[] = new Reference(
-                        $this->file,
-                        PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
-                        $this->scope[$name]
-                    );*/
-                }
+                // if (!\array_key_exists($name, $this->scope)) {
+                //     $var = new Variable($name);
+                //     $this->scope[$name] = $var;
+                //     $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
+                //     $target->addChild($var);
+                //     $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
+                //     $var->range = $range;
+                // }
+                // else {
+                //     /*$start = $node->getStart();
+                //     $length = $node->getEndPosition() - $start;
+                //     $this->repo->references[] = new Reference(
+                //         $this->file,
+                //         PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
+                //         $this->scope[$name]
+                //     );*/
+                // }
             }
         }
         else if ($node instanceof Parameter) {
-            $name = $node->getName();
-            if ($this->currentFunction && $name) {
-                if (!\array_key_exists($name, $this->scope)) {
-                    $var = new Variable($name);
-                    $this->scope[$name] = $var;
-                    $this->currentFunction->addChild($var);
-                    $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
-                    $var->range = $range;
-                    $var->loc = 1;
-                }
+            // $name = $node->getName();
+            // if ($this->currentFunction && $name) {
+            //     if (!\array_key_exists($name, $this->scope)) {
+            //         $var = new Variable($name);
+            //         $this->scope[$name] = $var;
+            //         $this->currentFunction->addChild($var);
+            //         $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
+            //         $var->range = $range;
+            //     }
+            // }
+        }
+        else if ($node instanceof ObjectCreationExpression) {
+            if ($node->classTypeDesignator instanceof QualifiedName) {
+                $name = $node->classTypeDesignator->getText();
+                $start = $node->classTypeDesignator->getStart();
+                $length = $node->classTypeDesignator->getEndPosition() - $start;
             }
+            else if ($node->classTypeDesignator instanceof Token) {
+                $name = $node->classTypeDesignator->getText($this->src->fileContents);
+                $start = $node->classTypeDesignator->getStartPosition();
+                $length = $node->classTypeDesignator->getEndPosition() - $start;
+            }
+            else {
+                return;
+            }
+
+            $fqn = $this->expandName($name);
+            $this->repo->references[] = new Reference(
+                $this->file,
+                PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
+                $fqn
+            );
         }
     }
 

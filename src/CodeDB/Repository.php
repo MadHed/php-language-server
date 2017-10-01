@@ -199,7 +199,7 @@ class ChildrenIterator extends IteratorBase {
 
     public function gen() {
         foreach($this->base as $element) {
-            if (isset($element->children)) {
+            if (is_array($element->children)) {
                 foreach($element->children as $child) {
                     if ($child instanceof $this->type) {
                         yield $child;
@@ -342,5 +342,34 @@ class Repository {
         $this->files = $db->files;
         $this->references = $db->references;
         $this->fqnMap = $db->fqnMap;
+    }
+
+    public function resolveReferences() {
+        foreach($this->references as $ref) {
+            if (\is_string($ref->target)) {
+                if (isset($this->fqnMap[$ref->target])) {
+                    $ref->target = $this->fqnMap[$ref->target];
+                }
+            }
+        }
+    }
+
+    public function removeFile($uri) {
+        if (!isset($this->files[$uri])) {
+            return;
+        }
+
+        $file = $this->files[$uri];
+
+        foreach($this->references as $i => $reference) {
+            if ($reference->file === $file) {
+                unset($this->references[$i]);
+            }
+            else if (is_object($references->target) && $reference->target->getFile() === $file) {
+                unset($this->references[$i]);
+            }
+        }
+
+        unset($this->files[$uri]);
     }
 }

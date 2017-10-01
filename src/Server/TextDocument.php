@@ -22,7 +22,9 @@ use LanguageServer\Protocol\{
     TextDocumentItem,
     VersionedTextDocumentIdentifier,
     CompletionContext,
-    SymbolKind
+    SymbolKind,
+    CodeLens,
+    Command
 };
 use Microsoft\PhpParser;
 use Microsoft\PhpParser\Node;
@@ -61,6 +63,55 @@ class TextDocument
     ) {
         $this->client = $client;
         $this->db = $db;
+    }
+
+    public function codeLens(TextDocumentIdentifier $textDocument): Promise
+    {
+        return coroutine(function () use ($textDocument) {
+            $codeLens = [];
+            $file = $this->db->files[$textDocument->uri] ?? null;
+            if ($file === null) {
+                return $codeLens;
+            }
+
+            $symbols = [];
+            if (is_array($file->children)) {
+                foreach($file->children as $ns) {
+                    $symbols[] = $ns;
+                    if (is_array($ns->children)) {
+                        foreach($ns->children as $sym) {
+                            $symbols[] = $sym;
+                            if (is_array($sym->children)) {
+                                foreach($sym->children as $syms) {
+                                    $symbols[] = $syms;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach($symbols as $sym) {
+                $count=0;
+                foreach($this->db->references as $ref) {
+                    yield;
+                    if (is_object($ref->target) && $ref->target === $sym) {
+                        $count++;
+                    }
+                }
+
+                $cl = new CodeLens;
+                $cl->range = new Range(new Position($sym->range->start->line, $sym->range->start->character),
+                new Position($sym->range->end->line, $sym->range->end->character));
+                $cmd = new Command;
+                $cmd->title = $count.' references';
+                $cmd->command = '';
+                $cl->command = $cmd;
+                $codeLens[] = $cl;
+            }
+
+            return $codeLens;
+        });
     }
 
     /**
@@ -124,13 +175,6 @@ class TextDocument
             }
             return $results;
         });
-        /* return $this->documentLoader->getOrLoad($textDocument->uri)->then(function (PhpDocument $document) {
-            $symbols = [];
-            foreach ($document->getDefinitions() as $fqn => $definition) {
-                $symbols[] = $definition->symbolInformation;
-            }
-            return $symbols;
-        }); */
     }
 
     /**
@@ -159,7 +203,16 @@ class TextDocument
      */
     public function didChange(VersionedTextDocumentIdentifier $textDocument, array $contentChanges)
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () use($textDocument, $contentChanges) {
+            yield;
+            $this->db->removeFile($textDocument->uri);
+            $parser = new \Microsoft\PhpParser\Parser();
+            $ast = $parser->parseSourceFile($contentChanges[0]->text, $textDocument->uri);
+            $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $contentChanges[0]->text);
+            $collector->iterate($ast);
+            $this->db->resolveReferences();
+
+        });
         /* $document = $this->documentLoader->get($textDocument->uri);
         $document->updateContent($contentChanges[0]->text);
         $this->client->textDocument->publishDiagnostics($textDocument->uri, $document->getDiagnostics()); */

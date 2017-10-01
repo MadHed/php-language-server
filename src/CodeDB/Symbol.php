@@ -6,8 +6,7 @@ abstract class Symbol {
     public $name;
     public $range;
     public $parent;
-    public $children = [];
-    public $loc = 0;
+    public $children;
 
     abstract function fqn(): string;
 
@@ -18,5 +17,16 @@ abstract class Symbol {
     public function addChild(Symbol $child) {
         $this->children[$child->name] = $child;
         $child->parent = $this;
+    }
+
+    public function getFile() {
+        $node = $this;
+        do {
+            if ($node instanceof File) {
+                return $node;
+            }
+            $node = $node->parent;
+        } while ($node !== null);
+        return null;
     }
 }

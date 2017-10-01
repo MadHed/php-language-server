@@ -9,7 +9,8 @@ use LanguageServer\Protocol\{
     TextDocumentSyncKind,
     Message,
     InitializeResult,
-    CompletionOptions
+    CompletionOptions,
+    CodeLensOptions
 };
 use LanguageServer\FilesFinder\{FilesFinder, ClientFilesFinder, FileSystemFilesFinder};
 use LanguageServer\ContentRetriever\{ContentRetriever, ClientContentRetriever, FileSystemContentRetriever};
@@ -268,6 +269,9 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
             $serverCapabilities->xworkspaceReferencesProvider = true;
             $serverCapabilities->xdefinitionProvider = true;
             $serverCapabilities->xdependenciesProvider = true;
+            // Support CodeLens
+            $serverCapabilities->codeLensProvider = new CodeLensOptions;
+            $serverCapabilities->codeLensProvider->resolveProvider = false;
 
             return new InitializeResult($serverCapabilities);
         });
