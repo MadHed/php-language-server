@@ -1,12 +1,10 @@
 <?php
 
-namespace LanguageServer\CodeRepository;
+namespace LanguageServer\CodeDB;
 
 class Interface_ extends Symbol {
-    private $functions = [];
-
     public function __construct(string $name) {
-        $this->name = $name;
+        parent::__construct($name);
     }
 
     public function fqn(): string {

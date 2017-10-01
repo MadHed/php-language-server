@@ -2,29 +2,55 @@
 
 $start = microtime(true);
 
-class Foo {
-    public $a;
-    public $b;
-    public $c;
-    public $d;
-    public $e;
-    public $f;
+function b() {
+    return 1;
 }
 
-$a = new Foo();
-for($i=0;$i<1000000;$i++) {
-    $r = new \ReflectionClass($a);
-    $ps = $r->getProperties();
-    $arr = [1,2,3];
-    foreach($ps as $p) {
-        if (!in_array($p->getName(), $arr)) {
-            $p->getValue($a);
-        }
+function a($x) {
+    if ($x > 0) {
+        return a($x - 1) + b();
+    }
+    else {
+        return b();
     }
 }
 
+$sum = 0;
+for($i=0;$i<1000000;$i++) {
+    $sum = a(100);
+}
+echo $sum."\n";
+
 $end = microtime(true);
 echo ((int)(($end-$start)*1000))."ms\n";
+
+$start = microtime(true);
+
+for($i=0;$i<1000000;$i++) {
+    $sum = 0;
+    for($j = 0; $j < 100; $j++) {
+        $sum += b();
+    }
+}
+echo $sum."\n";
+
+$end = microtime(true);
+echo ((int)(($end-$start)*1000))."ms\n";
+
+
+$start = microtime(true);
+
+for($i=0;$i<1000000;$i++) {
+    $sum = 0;
+    for($j = 0; $j < 100; $j++) {
+        $sum += 1;
+    }
+}
+echo $sum."\n";
+
+$end = microtime(true);
+echo ((int)(($end-$start)*1000))."ms\n";
+
 
 echo memory_get_usage()."\n";
 

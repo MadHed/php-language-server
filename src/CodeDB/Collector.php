@@ -1,6 +1,6 @@
 <?php
 
-namespace LanguageServer\CodeRepository;
+namespace LanguageServer\CodeDB;
 
 use Microsoft\PhpParser\{
     PositionUtilities,
@@ -78,12 +78,10 @@ class Collector {
 
     private function getNamespace() {
         if ($this->namespace === null) {
-            if (!isset($this->file->namespaces[''])) {
-                $globalNspace = new Namespace_('');
-                $globalNspace->parent = $this->file;
-                $this->file->namespaces[''] = $globalNspace;
+            if (!isset($this->file->children[''])) {
+                $this->file->addChild(new Namespace_(''));
             }
-            $this->namespace = $this->file->namespaces[''];
+            $this->namespace = $this->file->children[''];
         }
         return $this->namespace;
     }
@@ -91,20 +89,19 @@ class Collector {
     private function visit($node) {
         if ($node instanceof NamespaceDefinition) {
             $name = $node->name ? $node->name->getText() : '';
-            if (isset($this->file->namespaces[$name])) {
-                $this->namespace = $this->file->namespaces[$name];
+            if (isset($this->file->children[$name])) {
+                $this->namespace = $this->file->children[$name];
             }
             else {
                 $this->namespace = new Namespace_($name);
-                $this->namespace->parent = $this->file;
-                $this->file->namespaces[$name] = $this->namespace;
+                $this->file->addChild($this->namespace);
             }
         }
         else if ($node instanceof ClassDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
                 $this->currentClass = new Class_($name);
-                $this->getNamespace()->addClass($this->currentClass);
+                $this->getNamespace()->addChild($this->currentClass);
                 $this->repo->fqnMap[$this->currentClass->fqn()] = $this->currentClass;
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
@@ -137,7 +134,7 @@ class Collector {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
                 $this->currentInterface = new Interface_($name);
-                $this->getNamespace()->addInterface($this->currentInterface);
+                $this->getNamespace()->addChild($this->currentInterface);
                 $this->repo->fqnMap[$this->currentInterface->fqn()] = $this->currentInterface;
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
@@ -160,7 +157,7 @@ class Collector {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
                 $this->currentFunction = new Function_($name);
-                $this->getNamespace()->addFunction($this->currentFunction);
+                $this->getNamespace()->addChild($this->currentFunction);
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
             }
         }
@@ -168,7 +165,7 @@ class Collector {
             $name = $node->name->getText($this->src);
             if ($name && $this->currentClass) {
                 $this->currentFunction = new Function_($name);
-                $this->currentClass->addFunction($this->currentFunction);
+                $this->currentClass->addChild($this->currentFunction);
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
             }
         }
@@ -179,7 +176,7 @@ class Collector {
                     $var = new Variable($name);
                     $this->scope[$name] = $var;
                     $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
-                    $target->addVariable($var);
+                    $target->addChild($var);
                 }
                 else {
                     $start = $node->getStart();
@@ -198,7 +195,7 @@ class Collector {
                 if (!\array_key_exists($name, $this->scope)) {
                     $var = new Variable($name);
                     $this->scope[$name] = $var;
-                    $this->currentFunction->addVariable($var);
+                    $this->currentFunction->addChild($var);
                 }
             }
         }

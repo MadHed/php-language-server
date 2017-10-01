@@ -1,9 +1,9 @@
 <?php
 
-namespace LanguageServer\CodeRepository;
+namespace LanguageServer\CodeDB;
 
 class Constant extends Symbol {
     public function __construct(string $name) {
-        $this->name = $name;
+        parent::__construct($name);
     }
 }

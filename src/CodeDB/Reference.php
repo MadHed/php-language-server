@@ -1,6 +1,6 @@
 <?php
 
-namespace LanguageServer\CodeRepository;
+namespace LanguageServer\CodeDB;
 
 class Reference {
     public $file;

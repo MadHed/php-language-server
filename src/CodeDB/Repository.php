@@ -1,6 +1,6 @@
 <?php
 
-namespace LanguageServer\CodeRepository;
+namespace LanguageServer\CodeDB;
 
 function makeSelectorFunction($s) {
     if (\is_string($s)) {
@@ -32,31 +32,27 @@ abstract class IteratorBase {
     }
 
     public function variables() {
-        return new VariablesIterator($this);
+        return new ChildrenIterator($this, Variable::class);
     }
 
     public function functions() {
-        return new FunctionsIterator($this);
+        return new ChildrenIterator($this, Function_::class);
     }
 
     public function constants() {
-        return new ConstantsIterator($this);
+        return new ChildrenIterator($this, Constant::class);
     }
 
     public function classes() {
-        return new ClassesIterator($this);
+        return new ChildrenIterator($this, Class_::class);
     }
 
     public function interfaces() {
-        return new InterfacesIterator($this);
-    }
-
-    public function files() {
-        return new FilesIterator($this);
+        return new ChildrenIterator($this, Interface_::class);
     }
 
     public function namespaces() {
-        return new NamespacesIterator($this);
+        return new ChildrenIterator($this, Namespace_::class);
     }
 
     public function filter($predicate) {
@@ -69,6 +65,10 @@ abstract class IteratorBase {
 
     public function sort($comparer) {
         return new SortIterator($this, $comparer);
+    }
+
+    public function select($selector) {
+        return new SelectIterator($this, makeSelectorFunction($selector));
     }
 
     public function sortBy($selector) {
@@ -95,61 +95,54 @@ abstract class IteratorBase {
         return $c;
     }
 
+    public function implode($glue) {
+        $str = '';
+        $first = true;
+        foreach($this->gen() as $el) {
+            if (!$first) {
+                $str .= $glue;
+            }
+            $str .= $el;
+            $first = false;
+        }
+        return $str;
+    }
+
     abstract public function gen();
 }
 
-class FilesIterator extends IteratorBase {
+class ChildrenIterator extends IteratorBase {
+    private $type;
+
+    public function __construct($base, $type) {
+        parent::__construct($base);
+        $this->type = $type;
+    }
+
     public function gen() {
         foreach($this->base->gen() as $element) {
-            yield from $element->files()->gen();
+            if (isset($element->children)) {
+                foreach($element->children as $child) {
+                    if ($child instanceof $this->type) {
+                        yield $child;
+                    }
+                }
+            }
         }
     }
 }
 
-class VariablesIterator extends IteratorBase {
-    public function gen() {
-        foreach($this->base->gen() as $element) {
-            yield from $element->variables()->gen();
-        }
-    }
-}
+class SelectIterator extends IteratorBase {
+    private $selector;
 
-class FunctionsIterator extends IteratorBase {
-    public function gen() {
-        foreach($this->base->gen() as $element) {
-            yield from $element->functions()->gen();
-        }
+    public function __construct($base, $selector) {
+        parent::__construct($base);
+        $this->selector = $selector;
     }
-}
 
-class ConstantsIterator extends IteratorBase {
     public function gen() {
         foreach($this->base->gen() as $element) {
-            yield from $element->constants()->gen();
-        }
-    }
-}
-
-class ClassesIterator extends IteratorBase {
-    public function gen() {
-        foreach($this->base->gen() as $element) {
-            yield from $element->classes()->gen();
-        }
-    }
-}
-
-class InterfacesIterator extends IteratorBase {
-    public function gen() {
-        foreach($this->base->gen() as $element) {
-            yield from $element->interfaces()->gen();
-        }
-    }
-}
-
-class NamespacesIterator extends IteratorBase {
-    public function gen() {
-        foreach($this->base->gen() as $element) {
-            yield from $element->namespaces()->gen();
+            yield ($this->selector)($element);
         }
     }
 }

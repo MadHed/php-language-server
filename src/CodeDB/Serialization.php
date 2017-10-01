@@ -1,6 +1,6 @@
 <?php
 
-namespace LanguageServer\CodeRepository\Serialization;
+namespace LanguageServer\CodeDB\Serialization;
 
 function serialize($value) {
 

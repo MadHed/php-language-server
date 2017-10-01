@@ -1,21 +1,10 @@
 <?php
 
-namespace LanguageServer\CodeRepository;
+namespace LanguageServer\CodeDB;
 
 class Function_ extends Symbol {
-    private $variables = [];
-
     public function __construct(string $name) {
-        $this->name = $name;
-    }
-
-    public function addVariable(Variable $var) {
-        $this->variables[$var->name] = $var;
-        $var->parent = $this;
-    }
-
-    public function variables() {
-        return new ArrayIterator($this->variables);
+        parent::__construct($name);
     }
 
     public function fqn(): string {

@@ -1,6 +1,6 @@
 <?php
 
-namespace LanguageServer\CodeRepository;
+namespace LanguageServer\CodeDB;
 
 require_once 'vendor/autoload.php';
 
