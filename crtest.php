@@ -9,8 +9,8 @@ use function LanguageServer\uriToPath;
 require_once 'vendor/autoload.php';
 require_once 'sertest.php';
 
-use function LanguageServer\CodeRepository\serialize;
-use function LanguageServer\CodeRepository\unserialize;
+use function LanguageServer\CodeRepository\binserialize as serialize;
+use function LanguageServer\CodeRepository\binunserialize as unserialize;
 
 function bytes($v) {
     if ($v < 1024) {
@@ -46,7 +46,7 @@ $start = \microtime(true);
 
 if (file_exists('phpls.cache')) {
     $usstart = microtime(true);
-    $repo = unserialize(file_get_contents('phpls.cache'));
+    $repo = unserialize(file_get_contents('phpls.cache.bin'));
     $usend = microtime(true);
     echo "Unserialized in ".seconds($usend-$usstart)."\n";
 }
@@ -68,7 +68,7 @@ foreach ($rii as $file) {
 }
 
 $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('.'));
-//$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('/mnt/e/Projekte/magento'));
+$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('/mnt/e/Projekte/magento'));
 //$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('src'));
 foreach ($rii as $file) {
     $filename = $file->getRealPath();
@@ -124,18 +124,18 @@ echo 'References resolved in '.seconds($refend-$refstart)."\n";
 
 $end = \microtime(true);
 
-$start = microtime(true);
-/* foreach($repo->files()->namespaces()->classes()->filter(nameContains('g'))->gen() as $f) {
+/* $start = microtime(true);
+foreach($repo->files()->namespaces()->classes()->filter(nameContains('g'))->gen() as $f) {
     echo $f->name."\n";
-} */
+}
 $end = microtime(true);
-echo "Search finished in ".seconds($end-$start)."\n";
+echo "Search finished in ".seconds($end-$start)."\n"; */
 
 echo count($repo->references)." references. Resolved: $resolved, Unresolved: $unresolved\n";
 echo \count($files)." files in ".seconds($end-$start)."; $cached from cache; ".bytes(\memory_get_usage())." allocated\n";
 
 $sestart = microtime(true);
-file_put_contents('phpls.cache', serialize($repo));
+file_put_contents('phpls.cache.bin', serialize($repo));
 $seend = microtime(true);
 
 echo "Serialized in ".seconds($seend-$sestart)."\n";
