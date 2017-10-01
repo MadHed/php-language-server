@@ -8,10 +8,13 @@ use LanguageServer\FilesFinder\FilesFinder;
 use LanguageServer\Index\{DependenciesIndex, Index};
 use LanguageServer\Protocol\Message;
 use LanguageServer\Protocol\MessageType;
+use LanguageServer\ContentRetriever\ContentRetriever;
 use Webmozart\PathUtil\Path;
 use Composer\Semver\VersionParser;
 use Sabre\Event\Promise;
 use function Sabre\Event\coroutine;
+
+require_once dirname(__FILE__).'/../sertest.php';
 
 class Indexer
 {
@@ -79,22 +82,14 @@ class Indexer
         FilesFinder $filesFinder,
         string $rootPath,
         LanguageClient $client,
-        Cache $cache,
-        DependenciesIndex $dependenciesIndex,
-        Index $sourceIndex,
-        PhpDocumentLoader $documentLoader,
-        \stdClass $composerLock = null,
-        \stdClass $composerJson = null
+        ContentRetriever $documentLoader,
+        $db
     ) {
         $this->filesFinder = $filesFinder;
         $this->rootPath = $rootPath;
         $this->client = $client;
-        $this->cache = $cache;
-        $this->dependenciesIndex = $dependenciesIndex;
-        $this->sourceIndex = $sourceIndex;
         $this->documentLoader = $documentLoader;
-        $this->composerLock = $composerLock;
-        $this->composerJson = $composerJson;
+        $this->db = $db;
     }
 
     /**
@@ -105,6 +100,19 @@ class Indexer
     public function index(): Promise
     {
         return coroutine(function () {
+
+            $cache = $this->rootPath.'/phpls.cache';
+            if (file_exists($cache) && is_readable($cache)) {
+                try {
+                    $db = \LanguageServer\CodeDB\unserialize(file_get_contents($cache));
+                    \gc_collect_cycles();
+                    if ($db) {
+                        $this->db->from($db);
+                    }
+                }
+                catch (\Exception $e) {
+                }
+            }
 
             $pattern = Path::makeAbsolute('**/*.php', $this->rootPath);
             $uris = yield $this->filesFinder->find($pattern);
@@ -119,75 +127,14 @@ class Indexer
             $deps = [];
 
             foreach ($uris as $uri) {
-                $packageName = getPackageName($uri, $this->composerJson);
-                if ($this->composerLock !== null && $packageName) {
-                    // Dependency file
-                    if (!isset($deps[$packageName])) {
-                        $deps[$packageName] = [];
-                    }
-                    $deps[$packageName][] = $uri;
-                } else {
-                    // Source file
-                    $source[] = $uri;
-                }
+                // Source file
+                $source[] = $uri;
             }
 
             // Index source
             // Definitions and static references
             $this->client->window->logMessage(MessageType::INFO, 'Indexing project for definitions and static references');
             yield $this->indexFiles($source);
-            $this->sourceIndex->setStaticComplete();
-            // Dynamic references
-            $this->client->window->logMessage(MessageType::INFO, 'Indexing project for dynamic references');
-            yield $this->indexFiles($source);
-            $this->sourceIndex->setComplete();
-
-            // Index dependencies
-            $this->client->window->logMessage(MessageType::INFO, count($deps) . ' Packages');
-            foreach ($deps as $packageName => $files) {
-                // Find version of package and check cache
-                $packageKey = null;
-                $cacheKey = null;
-                $index = null;
-                foreach (array_merge($this->composerLock->packages, $this->composerLock->{'packages-dev'}) as $package) {
-                    // Check if package name matches and version is absolute
-                    // Dynamic constraints are not cached, because they can change every time
-                    $packageVersion = ltrim($package->version, 'v');
-                    if ($package->name === $packageName && strpos($packageVersion, 'dev') === false) {
-                        $packageKey = $packageName . ':' . $packageVersion;
-                        $cacheKey = self::CACHE_VERSION . ':' . $packageKey;
-                        // Check cache
-                        $index = yield $this->cache->get($cacheKey);
-                        break;
-                    }
-                }
-                if ($index !== null) {
-                    // Cache hit
-                    $this->dependenciesIndex->setDependencyIndex($packageName, $index);
-                    $this->client->window->logMessage(MessageType::INFO, "Restored $packageKey from cache");
-                } else {
-                    // Cache miss
-                    $index = $this->dependenciesIndex->getDependencyIndex($packageName);
-
-                    // Index definitions and static references
-                    $this->client->window->logMessage(MessageType::INFO, 'Indexing ' . ($packageKey ?? $packageName) . ' for definitions and static references');
-                    yield $this->indexFiles($files);
-                    $index->setStaticComplete();
-
-                    // Index dynamic references
-                    $this->client->window->logMessage(MessageType::INFO, 'Indexing ' . ($packageKey ?? $packageName) . ' for dynamic references');
-                    yield $this->indexFiles($files);
-                    $index->setComplete();
-
-                    // If we know the version (cache key), save index for the dependency in the cache
-                    if ($cacheKey !== null) {
-                        $this->client->window->logMessage(MessageType::INFO, "Storing $packageKey in cache");
-                        $this->cache->set($cacheKey, $index);
-                    } else {
-                        $this->client->window->logMessage(MessageType::WARNING, "Could not compute cache key for $packageName");
-                    }
-                }
-            }
 
             $duration = (int)(microtime(true) - $startTime);
             $mem = (int)(memory_get_usage(true) / (1024 * 1024));
@@ -206,28 +153,22 @@ class Indexer
     {
         return coroutine(function () use ($files) {
             foreach ($files as $i => $uri) {
-                // Skip open documents
-                if ($this->documentLoader->isOpen($uri)) {
-                    continue;
-                }
-
                 // Give LS to the chance to handle requests while indexing
                 yield timeout();
-                $this->client->window->logMessage(MessageType::LOG, "Parsing $uri");
-                try {
-                    $document = yield $this->documentLoader->load($uri);
-                    if (!isVendored($document, $this->composerJson)) {
-                        $this->client->textDocument->publishDiagnostics($uri, $document->getDiagnostics());
-                    }
-                } catch (ContentTooLargeException $e) {
-                    $this->client->window->logMessage(
-                        MessageType::INFO,
-                        "Ignoring file {$uri} because it exceeds size limit of {$e->limit} bytes ({$e->size})"
-                    );
-                } catch (\Exception $e) {
-                    $this->client->window->logMessage(MessageType::ERROR, "Error parsing $uri: " . (string)$e);
+                $contents = yield $this->documentLoader->retrieve($uri);
+                if (isset($this->db->files[$uri]) && \hash('sha256', $contents) === $this->db->files[$uri]->hash()) {
+                    continue;
                 }
+                $this->client->window->logMessage(MessageType::LOG, "Parsing $uri");
+                $parser = new \Microsoft\PhpParser\Parser();
+                $ast = $parser->parseSourceFile($contents, $uri);
+                $collector = new \LanguageServer\CodeDB\Collector($this->db, $uri, $ast);
+                $collector->iterate($ast);
             }
+
+            $cache = $this->rootPath.'/phpls.cache';
+            file_put_contents($cache, \LanguageServer\CodeDB\serialize($this->db));
+            \gc_collect_cycles();
         });
     }
 }

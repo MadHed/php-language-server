@@ -332,4 +332,10 @@ class Repository {
     public function files() {
         return new ArrayIterator($this->files);
     }
+
+    public function from($db) {
+        $this->files = $db->files;
+        $this->references = $db->references;
+        $this->fqnMap = $db->fqnMap;
+    }
 }

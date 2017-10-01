@@ -77,6 +77,7 @@ class TextDocument
                 ->files()
                 ->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))
                 ->namespaces()
+                ->classes()
                 ->symbols();
 
             yield;
