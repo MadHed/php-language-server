@@ -7,6 +7,7 @@ abstract class Symbol {
     public $range;
     public $parent;
     public $children = [];
+    public $loc = 0;
 
     abstract function fqn(): string;
 

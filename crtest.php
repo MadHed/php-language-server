@@ -125,14 +125,8 @@ echo 'References resolved in '.seconds($refend-$refstart)."\n";
 $end = \microtime(true);
 
 $searchstart = microtime(true);
-echo $repo->files()
-    ->namespaces()
-    ->classes()
-    ->filter(nameContains('Test'))
-    ->limit(100)
-    ->select('fqn()')
-    ->implode("\n");
 
+echo $repo->files()->select('loc')->avg();
 echo "\n";
 
 $searchend = microtime(true);

@@ -41,6 +41,8 @@ class Collector {
         $this->filename = $filename;
         $this->src = $src;
         $this->file = new File($filename, $src->fileContents);
+        $range = PositionUtilities::getRangeFromPositionInFile($src->getStart(), $src->getEndPosition(), $src);
+        $this->file->loc = $range->end->line - $range->start->line + 1;
         $repo->files[$filename] = $this->file;
     }
 
@@ -96,6 +98,8 @@ class Collector {
                 $this->namespace = new Namespace_($name);
                 $this->file->addChild($this->namespace);
             }
+            $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition(), $this->src);
+            $this->namespace->loc += $range->end->line - $range->start->line + 1;
         }
         else if ($node instanceof ClassDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
@@ -103,6 +107,8 @@ class Collector {
                 $this->currentClass = new Class_($name);
                 $this->getNamespace()->addChild($this->currentClass);
                 $this->repo->fqnMap[$this->currentClass->fqn()] = $this->currentClass;
+                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition(), $this->src);
+                $this->currentClass->loc = $range->end->line - $range->start->line + 1;
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
@@ -136,6 +142,8 @@ class Collector {
                 $this->currentInterface = new Interface_($name);
                 $this->getNamespace()->addChild($this->currentInterface);
                 $this->repo->fqnMap[$this->currentInterface->fqn()] = $this->currentInterface;
+                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition(), $this->src);
+                $this->currentInterface->loc = $range->end->line - $range->start->line + 1;
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
@@ -159,6 +167,8 @@ class Collector {
                 $this->currentFunction = new Function_($name);
                 $this->getNamespace()->addChild($this->currentFunction);
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
+                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition(), $this->src);
+                $this->currentFunction->loc = $range->end->line - $range->start->line + 1;
             }
         }
         else if ($node instanceof MethodDeclaration) {
@@ -167,6 +177,8 @@ class Collector {
                 $this->currentFunction = new Function_($name);
                 $this->currentClass->addChild($this->currentFunction);
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
+                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition(), $this->src);
+                $this->currentFunction->loc = $range->end->line - $range->start->line + 1;
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
@@ -177,6 +189,7 @@ class Collector {
                     $this->scope[$name] = $var;
                     $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
                     $target->addChild($var);
+                    $var->loc = 1;
                 }
                 else {
                     $start = $node->getStart();
@@ -196,6 +209,7 @@ class Collector {
                     $var = new Variable($name);
                     $this->scope[$name] = $var;
                     $this->currentFunction->addChild($var);
+                    $var->loc = 1;
                 }
             }
         }

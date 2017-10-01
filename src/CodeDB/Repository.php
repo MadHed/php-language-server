@@ -24,11 +24,48 @@ function makeSelectorFunction($s) {
     }
 }
 
-abstract class IteratorBase {
+function makeComparerFunction($s) {
+    if (\is_string($s)) {
+        $selector = makeSelectorFunction($s);
+        return function ($a, $b) use ($selector) {
+            return ($selector)($a) <=> ($selector)($b);
+        };
+    }
+    else if (\is_callable($s)) {
+        return $s;
+    }
+    else {
+        throw new \Exception('Invalid selector');
+    }
+}
+
+abstract class IteratorBase implements \Iterator {
     protected $base;
+    private $generator;
 
     public function __construct($base) {
         $this->base = $base;
+        $this->generator = $this->gen();
+    }
+
+    public function current() {
+        return $this->generator->current();
+    }
+
+    public function key() {
+        return $this->generator->getKey();
+    }
+
+    public function next() {
+        return $this->generator->next();
+    }
+
+    public function rewind() {
+        $this->generator->rewind();
+    }
+
+    public function valid() {
+        return $this->generator->valid();
     }
 
     public function variables() {
@@ -55,6 +92,10 @@ abstract class IteratorBase {
         return new ChildrenIterator($this, Namespace_::class);
     }
 
+    public function symbols() {
+        return new ChildrenIterator($this, Symbol::class);
+    }
+
     public function filter($predicate) {
         return new FilterIterator($this, $predicate);
     }
@@ -64,7 +105,7 @@ abstract class IteratorBase {
     }
 
     public function sort($comparer) {
-        return new SortIterator($this, $comparer);
+        return new SortIterator($this, makeComparerFunction($comparer));
     }
 
     public function select($selector) {
@@ -79,7 +120,7 @@ abstract class IteratorBase {
     }
 
     public function find($selector) {
-        foreach($this->gen() as $el) {
+        foreach($this as $el) {
             if (($selector)($el)) {
                 return $el;
             }
@@ -89,7 +130,7 @@ abstract class IteratorBase {
 
     public function count() {
         $c = 0;
-        foreach($this->gen() as $el) {
+        foreach($this as $el) {
             $c++;
         }
         return $c;
@@ -98,7 +139,7 @@ abstract class IteratorBase {
     public function implode($glue) {
         $str = '';
         $first = true;
-        foreach($this->gen() as $el) {
+        foreach($this as $el) {
             if (!$first) {
                 $str .= $glue;
             }
@@ -106,6 +147,43 @@ abstract class IteratorBase {
             $first = false;
         }
         return $str;
+    }
+
+    public function sum() {
+        $sum = 0;
+        foreach($this as $el) {
+            $sum += $el;
+        }
+        return $sum;
+    }
+
+    public function avg() {
+        $sum = 0;
+        $count = 0;
+        foreach($this as $el) {
+            $sum += $el;
+            $count++;
+        }
+        if ($count === 0) return null;
+        return $sum/$count;
+    }
+
+    public function max() {
+        $max = PHP_INT_MIN;
+        foreach($this as $el) {
+            if ($el > $max) $max = $el;
+        }
+        if ($max === PHP_INT_MIN) return null;
+        return $max;
+    }
+
+    public function min() {
+        $min = PHP_INT_MAX;
+        foreach($this as $el) {
+            if ($el < $min) $min = $el;
+        }
+        if ($min === PHP_INT_MAX) return null;
+        return $min;
     }
 
     abstract public function gen();
@@ -120,7 +198,7 @@ class ChildrenIterator extends IteratorBase {
     }
 
     public function gen() {
-        foreach($this->base->gen() as $element) {
+        foreach($this->base as $element) {
             if (isset($element->children)) {
                 foreach($element->children as $child) {
                     if ($child instanceof $this->type) {
@@ -141,7 +219,7 @@ class SelectIterator extends IteratorBase {
     }
 
     public function gen() {
-        foreach($this->base->gen() as $element) {
+        foreach($this->base as $element) {
             yield ($this->selector)($element);
         }
     }
@@ -156,7 +234,7 @@ class ArrayIterator extends IteratorBase {
 class MultiIterator extends IteratorBase {
     public function gen() {
         foreach($this->base as $el) {
-            yield from $el->gen();
+            yield from $el;
         }
     }
 }
@@ -170,7 +248,7 @@ class FilterIterator extends IteratorBase {
     }
 
     public function gen() {
-        foreach($this->base->gen() as $el) {
+        foreach($this->base as $el) {
             if (($this->predicate)($el)) {
                 yield $el;
             }
