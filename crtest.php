@@ -124,10 +124,15 @@ echo 'References resolved in '.seconds($refend-$refstart)."\n";
 
 $end = \microtime(true);
 
+$start = microtime(true);
+/* foreach($repo->files()->namespaces()->classes()->filter(nameContains('g'))->gen() as $f) {
+    echo $f->name."\n";
+} */
+$end = microtime(true);
+echo "Search finished in ".seconds($end-$start)."\n";
+
 echo count($repo->references)." references. Resolved: $resolved, Unresolved: $unresolved\n";
 echo \count($files)." files in ".seconds($end-$start)."; $cached from cache; ".bytes(\memory_get_usage())." allocated\n";
-
-\ini_set('serialize_precision', 20);
 
 $sestart = microtime(true);
 file_put_contents('phpls.cache', serialize($repo));
