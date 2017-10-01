@@ -192,12 +192,12 @@ function unserialize($string, $state = null) {
             $v = unserialize($string, $state);
             $k0 = $k[0];
 
-            if ($k0 === "\0" && $k[1] === '*') { // private
+            if ($k0 === "\0" && $k[1] === '*') { // protected
                 $k = substr($k, 3);
                 $prop = new \ReflectionClass($className, $k);
                 $prop->setValue($obj, $v);
             }
-            else if ($k0 === "\0") { // protected
+            else if ($k0 === "\0") { // private
                 $z = strrpos($k, "\0");
                 $cls = substr($k, 1, $z - 1);
                 $k = substr($k, $z + 1);
