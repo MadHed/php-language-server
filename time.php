@@ -1,56 +1,25 @@
 <?php
 
-$start = microtime(true);
+require 'sertest.php';
 
-function b() {
-    return 1;
+function memory() {
+    echo memory_get_usage(true)."\n";
 }
-
-function a($x) {
-    if ($x > 0) {
-        return a($x - 1) + b();
-    }
-    else {
-        return b();
-    }
-}
-
-$sum = 0;
-for($i=0;$i<1000000;$i++) {
-    $sum = a(100);
-}
-echo $sum."\n";
-
-$end = microtime(true);
-echo ((int)(($end-$start)*1000))."ms\n";
 
 $start = microtime(true);
-
-for($i=0;$i<1000000;$i++) {
-    $sum = 0;
-    for($j = 0; $j < 100; $j++) {
-        $sum += b();
-    }
-}
-echo $sum."\n";
-
 $end = microtime(true);
 echo ((int)(($end-$start)*1000))."ms\n";
 
 
-$start = microtime(true);
-
-for($i=0;$i<1000000;$i++) {
-    $sum = 0;
-    for($j = 0; $j < 100; $j++) {
-        $sum += 1;
-    }
+$str[] = new \stdClass();
+for($i=1;$i<1000000;$i++) {
+    $str[] = new \stdClass();
+    $str[$i]->ref = $str[$i-1];
 }
-echo $sum."\n";
-
-$end = microtime(true);
-echo ((int)(($end-$start)*1000))."ms\n";
-
-
-echo memory_get_usage()."\n";
+memory();
+for($i=0;$i<4;$i++) {
+    \serialize($str);
+    \gc_collect_cycles();
+    memory();
+}
 

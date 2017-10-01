@@ -104,7 +104,7 @@ class Indexer
             $cache = $this->rootPath.'/phpls.cache';
             if (file_exists($cache) && is_readable($cache)) {
                 try {
-                    $db = unserialize(file_get_contents($cache));
+                    $db = \unserialize(file_get_contents($cache));
                     \gc_collect_cycles();
                     if ($db) {
                         $this->db->from($db);
@@ -167,7 +167,7 @@ class Indexer
             }
 
             $cache = $this->rootPath.'/phpls.cache';
-            file_put_contents($cache, serialize($this->db));
+            file_put_contents($cache, \serialize($this->db));
             \gc_collect_cycles();
         });
     }
