@@ -7,7 +7,10 @@ use LanguageServer\Cache\Cache;
 use LanguageServer\FilesFinder\FilesFinder;
 use LanguageServer\Index\{DependenciesIndex, Index};
 use LanguageServer\Protocol\Message;
+use LanguageServer\Protocol\Diagnostic;
 use LanguageServer\Protocol\MessageType;
+use LanguageServer\Protocol\Range;
+use LanguageServer\Protocol\Position;
 use LanguageServer\ContentRetriever\ContentRetriever;
 use Webmozart\PathUtil\Path;
 use Composer\Semver\VersionParser;
@@ -159,15 +162,31 @@ class Indexer
                 // Give LS to the chance to handle requests while indexing
                 yield timeout();
                 $contents = yield $this->documentLoader->retrieve($uri);
-                if (isset($this->db->files[$uri]) && \hash('sha256', $contents) === $this->db->files[$uri]->hash()) {
-                    $this->client->window->logMessage(MessageType::LOG, "$uri not changed");
-                    continue;
+
+                if (!isset($this->db->files[$uri]) || \hash('sha256', $contents) !== $this->db->files[$uri]->hash()) {
+                    $this->client->window->logMessage(MessageType::LOG, "Parsing $uri");
+                    $parser = new \Microsoft\PhpParser\Parser();
+                    $ast = $parser->parseSourceFile($contents, $uri);
+                    $collector = new \LanguageServer\CodeDB\Collector($this->db, $uri, $ast);
+                    $collector->iterate($ast);
                 }
-                $this->client->window->logMessage(MessageType::LOG, "Parsing $uri");
-                $parser = new \Microsoft\PhpParser\Parser();
-                $ast = $parser->parseSourceFile($contents, $uri);
-                $collector = new \LanguageServer\CodeDB\Collector($this->db, $uri, $ast);
-                $collector->iterate($ast);
+
+                $diags = [];
+                if (is_array($this->db->files[$uri]->diagnostics)) {
+                    foreach($this->db->files[$uri]->diagnostics as $diag) {
+                        $diags[] = new Diagnostic(
+                            $diag->message,
+                            new Range(
+                                new Position($diag->startLine, $diag->startCharacter),
+                                new Position($diag->endLine, $diag->endCharacter)
+                            ),
+                            0,
+                            0,
+                            null
+                        );
+                    }
+                }
+                $this->client->textDocument->publishDiagnostics($uri, $diags);
             }
 
             $this->client->window->logMessage(MessageType::LOG, "Resolving references");

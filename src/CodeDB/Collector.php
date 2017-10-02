@@ -6,7 +6,8 @@ use Microsoft\PhpParser\{
     PositionUtilities,
     Parser,
     Node,
-    Token
+    Token,
+    DiagnosticsProvider
 };
 
 use Microsoft\PhpParser\Node\{
@@ -14,7 +15,8 @@ use Microsoft\PhpParser\Node\{
     MethodDeclaration,
     PropertyDeclaration,
     Parameter,
-    QualifiedName
+    QualifiedName,
+    NamespaceUseClause
 };
 
 use Microsoft\PhpParser\Node\Statement\{
@@ -40,18 +42,23 @@ class Collector {
     private $currentFunction;
 
     private $scope = [];
+    private $aliases = [];
 
     public function __construct($repo, $filename, $src) {
         $this->repo = $repo;
         $this->filename = $filename;
         $this->src = $src;
         $this->file = new File($filename, $src->fileContents);
-        $range = PositionUtilities::getRangeFromPositionInFile($src->getStart(), $src->getEndPosition() - $src->getStart(), $src);
+        $range = PositionUtilities::getRangeFromPositionInFile($src->getStart(), $src->getStart(), $src);
         $this->file->range = $range;
         $repo->files[$filename] = $this->file;
     }
 
     private function expandName($name) {
+        if (isset($this->aliases[$name])) {
+            return $this->aliases[$name];
+        }
+
         if (\strlen($name) === 0 || $name[0] === '\\') {
             return $name;
         }
@@ -83,11 +90,46 @@ class Collector {
         $this->leave($node);
     }
 
+    private function getRangeFromNode($node) {
+        if ($node instanceof Node) {
+            $start = $node->getStart();
+            $end = $node->getEndPosition();
+        }
+        else if ($node instanceof Token) {
+            $start = $node->getStartPosition();
+            $end = $node->getEndPosition();
+        }
+        else {
+            $start = $end = 0;
+        }
+        return PositionUtilities::getRangeFromPositionInFile($start, $end - $start, $this->src);
+    }
+
+    private function getText($node) {
+        if ($node instanceof Node) {
+            return $node->getText();
+        }
+        else if ($node instanceof Token) {
+            return $node->getText($this->src->fileContents);
+        }
+        return '';
+    }
+
+    private function addAlias($name, $alias = null) {
+        if ($alias !== null) {
+            $this->aliases[$alias] = $name;
+            return;
+        }
+        $name = trim($name, '\\');
+        $parts = explode('\\', $name);
+        $this->aliases[end($parts)] = '\\'.$name;
+    }
+
     private function getNamespace() {
         if ($this->namespace === null) {
             if (!isset($this->file->children[''])) {
                 $ns = new Namespace_('');
-                $ns->range = PositionUtilities::getRangeFromPositionInFile(0, strlen($this->src->fileContents), $this->src);
+                $ns->range = PositionUtilities::getRangeFromPositionInFile(0, 0, $this->src);
                 $this->file->addChild($ns);
             }
             $this->namespace = $this->file->children[''];
@@ -96,17 +138,54 @@ class Collector {
     }
 
     private function visit($node) {
+        $diag = DiagnosticsProvider::checkDiagnostics($node);
+        if ($diag) {
+            $range = PositionUtilities::getRangeFromPositionInFile(
+                $diag->start,
+                $diag->length,
+                $this->src
+            );
+
+            $this->file->addDiagnostic(new Diagnostic(
+                $diag->kind,
+                $diag->message,
+                $range->start->line,
+                $range->start->character,
+                $range->end->line,
+                $range->end->character
+            ));
+        }
+
         if ($node instanceof NamespaceDefinition) {
-            $name = $node->name ? $node->name->getText() : '';
+            $name = $this->getText($node->name);
             if (isset($this->file->children[$name])) {
                 $this->namespace = $this->file->children[$name];
             }
             else {
                 $this->namespace = new Namespace_($name);
+                $this->namespace->range = $this->getRangeFromNode($node->name);
                 $this->file->addChild($this->namespace);
             }
-            $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
-            $this->namespace->range = $range;
+        }
+        else if ($node instanceof NamespaceUseClause) {
+            $base = $this->getText($node->namespaceName);
+            if ($node->namespaceAliasingClause !== null) {
+                if ($node->namespaceAliasingClause->name !== null) {
+                    $alias = $this->getText($node->namespaceAliasingClause->name);
+                    $this->addAlias($base, $alias);
+                }
+            }
+            else if ($node->groupClauses != null && $node->groupClauses->children != null) {
+                foreach($node->groupClauses->children as $group) {
+                    if ($group && $group instanceof Node && $group->namespaceName !== null) {
+                        $ext = $this->getText($group->namespaceName);
+                        $this->addAlias($base.$ext);
+                    }
+                }
+            }
+            else {
+                $this->addAlias($base);
+            }
         }
         else if ($node instanceof ClassDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
@@ -114,29 +193,24 @@ class Collector {
                 $this->currentClass = new Class_($name);
                 $this->getNamespace()->addChild($this->currentClass);
                 $this->repo->fqnMap[$this->currentClass->fqn()] = $this->currentClass;
-                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
-                $this->currentClass->range = $range;
+                $this->currentClass->range = $this->getRangeFromNode($node->name);
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
-                    $start = $node->classBaseClause->baseClass->getStart();
-                    $length = $node->classBaseClause->baseClass->getEndPosition() - $start;
                     $this->repo->references[] = new Reference(
                         $this->file,
-                        PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
+                        $this->getRangeFromNode($node->classBaseClause->baseClass),
                         $this->expandName($className)
                     );
                 }
                 if ($node->classInterfaceClause && $node->classInterfaceClause->interfaceNameList) {
                     foreach($node->classInterfaceClause->interfaceNameList->children as $interfaceName) {
                         if ($interfaceName instanceof Node) {
-                            $start = $interfaceName->getStart();
-                            $length = $interfaceName->getEndPosition() - $start;
-                            $interfaceName = $interfaceName->getText();
+                            $name = $interfaceName->getText();
                             $this->repo->references[] = new Reference(
                                 $this->file,
-                                PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
-                                $this->expandName($interfaceName)
+                                $this->getRangeFromNode($interfaceName),
+                                $this->expandName($name)
                             );
                         }
                     }
@@ -149,19 +223,16 @@ class Collector {
                 $this->currentInterface = new Interface_($name);
                 $this->getNamespace()->addChild($this->currentInterface);
                 $this->repo->fqnMap[$this->currentInterface->fqn()] = $this->currentInterface;
-                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
-                $this->currentInterface->range = $range;
+                $this->currentInterface->range = $this->getRangeFromNode($node->name);
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
                         if ($interfaceName instanceof Node) {
-                            $start = $interfaceName->getStart();
-                            $length = $interfaceName->getEndPosition() - $start;
-                            $interfaceName = $interfaceName->getText();
+                            $name = $interfaceName->getText();
                             $this->repo->references[] = new Reference(
                                 $this->file,
-                                PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
-                                $this->expandName($interfaceName)
+                                $this->getRangeFromNode($interfaceName),
+                                $this->expandName($name)
                             );
                         }
                     }
@@ -174,8 +245,7 @@ class Collector {
                 $this->currentFunction = new Function_($name);
                 $this->getNamespace()->addChild($this->currentFunction);
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
-                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
-                $this->currentFunction->range = $range;
+                $this->currentFunction->range = $this->getRangeFromNode($node->name);
             }
         }
         else if ($node instanceof MethodDeclaration) {
@@ -184,8 +254,7 @@ class Collector {
                 $this->currentFunction = new Function_($name);
                 $this->currentClass->addChild($this->currentFunction);
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
-                $range = PositionUtilities::getRangeFromPositionInFile($node->getStart(), $node->getEndPosition() - $node->getStart(), $this->src);
-                $this->currentFunction->range = $range;
+                $this->currentFunction->range = $this->getRangeFromNode($node->name);
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
@@ -225,13 +294,9 @@ class Collector {
         else if ($node instanceof ObjectCreationExpression) {
             if ($node->classTypeDesignator instanceof QualifiedName) {
                 $name = $node->classTypeDesignator->getText();
-                $start = $node->classTypeDesignator->getStart();
-                $length = $node->classTypeDesignator->getEndPosition() - $start;
             }
             else if ($node->classTypeDesignator instanceof Token) {
                 $name = $node->classTypeDesignator->getText($this->src->fileContents);
-                $start = $node->classTypeDesignator->getStartPosition();
-                $length = $node->classTypeDesignator->getEndPosition() - $start;
             }
             else {
                 return;
@@ -240,7 +305,7 @@ class Collector {
             $fqn = $this->expandName($name);
             $this->repo->references[] = new Reference(
                 $this->file,
-                PositionUtilities::getRangeFromPositionInFile($start, $length, $this->src),
+                $this->getRangeFromNode($node->classTypeDesignator),
                 $fqn
             );
         }

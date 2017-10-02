@@ -24,7 +24,8 @@ use LanguageServer\Protocol\{
     CompletionContext,
     SymbolKind,
     CodeLens,
-    Command
+    Command,
+    Diagnostic
 };
 use Microsoft\PhpParser;
 use Microsoft\PhpParser\Node;
@@ -94,7 +95,7 @@ class TextDocument
             foreach($symbols as $sym) {
                 $count=0;
                 foreach($this->db->references as $ref) {
-                    yield;
+                    yield null;
                     if (is_object($ref->target) && $ref->target === $sym) {
                         $count++;
                     }
@@ -131,7 +132,7 @@ class TextDocument
                     $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces()->classes()->symbols()
                 ));
 
-            yield;
+            yield null;
             $results = [];
             foreach($symbols as $symbol) {
                 $kind = SymbolKind::CONSTANT;
@@ -187,7 +188,9 @@ class TextDocument
      */
     public function didOpen(TextDocumentItem $textDocument)
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () use($textDocument) {
+            yield null;
+        });
         /* $document = $this->documentLoader->open($textDocument->uri, $textDocument->text);
         if (!isVendored($document, $this->composerJson)) {
             $this->client->textDocument->publishDiagnostics($textDocument->uri, $document->getDiagnostics());
@@ -204,14 +207,29 @@ class TextDocument
     public function didChange(VersionedTextDocumentIdentifier $textDocument, array $contentChanges)
     {
         return coroutine(function () use($textDocument, $contentChanges) {
-            yield;
+            yield null;
             $this->db->removeFile($textDocument->uri);
             $parser = new \Microsoft\PhpParser\Parser();
             $ast = $parser->parseSourceFile($contentChanges[0]->text, $textDocument->uri);
-            $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $contentChanges[0]->text);
+            $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $ast);
             $collector->iterate($ast);
             $this->db->resolveReferences();
-
+            $diags = [];
+            if (is_array($collector->file->diagnostics)) {
+                foreach($collector->file->diagnostics as $diag) {
+                    $diags[] = new Diagnostic(
+                        $diag->message,
+                        new Range(
+                            new Position($diag->startLine, $diag->startCharacter),
+                            new Position($diag->endLine, $diag->endCharacter)
+                        ),
+                        0,
+                        0,
+                        null
+                    );
+                }
+            }
+            $this->client->textDocument->publishDiagnostics($textDocument->uri, $diags);
         });
         /* $document = $this->documentLoader->get($textDocument->uri);
         $document->updateContent($contentChanges[0]->text);
@@ -228,7 +246,7 @@ class TextDocument
      */
     public function didClose(TextDocumentIdentifier $textDocument)
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () {yield null;});
         /* $this->documentLoader->close($textDocument->uri); */
     }
 
@@ -241,7 +259,7 @@ class TextDocument
      */
     public function formatting(TextDocumentIdentifier $textDocument, FormattingOptions $options)
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () {yield null;});
         /* return $this->documentLoader->getOrLoad($textDocument->uri)->then(function (PhpDocument $document) {
             return $document->getFormattedText();
         }); */
@@ -259,7 +277,26 @@ class TextDocument
         TextDocumentIdentifier $textDocument,
         Position $position
     ): Promise {
-        return coroutine(function () {yield;});
+        return coroutine(function () use($textDocument, $position) {
+            yield null;
+            if (!isset($this->db->files[$textDocument->uri])) return [];
+            $file = $this->db->files[$textDocument->uri];
+            $sym = $file->getSymbolAtPosition($position->line, $position->character);
+            if (!$sym) return [];
+            $locations = [];
+            foreach($this->db->references as $ref) {
+                if ($ref->target !== $sym) continue;
+                if (!$ref->file instanceof \LanguageServer\CodeDB\File) continue;
+                $locations[] = new Location(
+                    $ref->file->name,
+                    new Range(
+                        new Position($ref->range->start->line, $ref->range->start->character),
+                        new Position($ref->range->end->line, $ref->range->end->character)
+                    )
+                );
+            }
+            return $locations;
+        });
         /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             $node = $document->getNodeAtPosition($position);
@@ -335,7 +372,22 @@ class TextDocument
      */
     public function definition(TextDocumentIdentifier $textDocument, Position $position): Promise
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () use($textDocument, $position) {
+            yield null;
+            if (!isset($this->db->files[$textDocument->uri])) return [];
+            $file = $this->db->files[$textDocument->uri];
+            $ref = $this->db->getReferenceAtPosition($file, $position->line, $position->character);
+            if (!$ref) return [];
+            if (!$ref->target instanceof \LanguageServer\CodeDB\Symbol) return [];
+            echo $ref->target->fqn();
+            return new Location(
+                $ref->target->getFile()->name,
+                new Range(
+                    new Position($ref->target->range->start->line, $ref->target->range->start->character),
+                    new Position($ref->target->range->end->line, $ref->target->range->end->character)
+                )
+            );
+        });
         /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             $node = $document->getNodeAtPosition($position);
@@ -377,7 +429,7 @@ class TextDocument
      */
     public function hover(TextDocumentIdentifier $textDocument, Position $position): Promise
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () {yield null;});
         /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             // Find the node under the cursor
@@ -431,7 +483,7 @@ class TextDocument
      */
     public function completion(TextDocumentIdentifier $textDocument, Position $position, CompletionContext $context = null): Promise
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () {yield null;});
         /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             return $this->completionProvider->provideCompletion($document, $position);
@@ -452,7 +504,7 @@ class TextDocument
      */
     public function xdefinition(TextDocumentIdentifier $textDocument, Position $position): Promise
     {
-        return coroutine(function () {yield;});
+        return coroutine(function () {yield null;});
         /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             $node = $document->getNodeAtPosition($position);

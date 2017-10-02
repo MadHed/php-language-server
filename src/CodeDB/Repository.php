@@ -365,11 +365,25 @@ class Repository {
             if ($reference->file === $file) {
                 unset($this->references[$i]);
             }
-            else if (is_object($references->target) && $reference->target->getFile() === $file) {
-                unset($this->references[$i]);
+            else if (is_object($reference->target) && $reference->target->getFile() === $file) {
+                $reference->target = $reference->target->fqn();
             }
         }
 
         unset($this->files[$uri]);
+    }
+
+    public function getReferenceAtPosition($file, $line, $character) {
+        foreach($this->references as $ref) {
+            if ($ref->file === $file) {
+                if (!(($line === $ref->range->start->line && $character < $ref->range->start->character)
+                    || ($line === $ref->range->end->line && $character > $ref->range->end->character)
+                    || ($line < $ref->range->start->line || $line > $ref->range->end->line))
+                ) {
+                    return $ref;
+                }
+            }
+        }
+        return null;
     }
 }

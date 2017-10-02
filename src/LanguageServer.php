@@ -271,7 +271,7 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
             $serverCapabilities->xdependenciesProvider = true;
             // Support CodeLens
             $serverCapabilities->codeLensProvider = new CodeLensOptions;
-            $serverCapabilities->codeLensProvider->resolveProvider = false;
+            $serverCapabilities->codeLensProvider->resolveProvider = true;
 
             return new InitializeResult($serverCapabilities);
         });
