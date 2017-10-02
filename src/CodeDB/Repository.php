@@ -350,6 +350,16 @@ class Repository {
                 if (isset($this->fqnMap[$ref->target])) {
                     $ref->target = $this->fqnMap[$ref->target];
                 }
+                else {
+                    $ref->file->addDiagnostic(new Diagnostic(
+                        0,
+                        'Unresolved symbol',
+                        $ref->range->start->line,
+                        $ref->range->start->character,
+                        $ref->range->end->line,
+                        $ref->range->end->character
+                    ));
+                }
             }
         }
     }
