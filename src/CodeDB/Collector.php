@@ -221,11 +221,13 @@ class Collector {
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
-                    $this->repo->references[] = new Reference(
+                    $ref = new Reference(
                         $this->file,
                         $this->getRangeFromNode($node->classBaseClause->baseClass),
                         $this->expandName($className)
                     );
+                    $this->currentClass->extends = $ref;
+                    $this->repo->references[] = $ref;
                 }
                 if ($node->classInterfaceClause && $node->classInterfaceClause->interfaceNameList) {
                     foreach($node->classInterfaceClause->interfaceNameList->children as $interfaceName) {
@@ -282,6 +284,7 @@ class Collector {
             }
         }
         else if ($node instanceof ConstDeclaration || $node instanceof ClassConstDeclaration) {
+            if (!$node->constElements) return;
             foreach($node->constElements as $elements) {
                 if (!is_array($elements)) {
                     $elements = [$elements];
@@ -366,7 +369,9 @@ class Collector {
                     $className = $this->currentClass->fqn();
                 }
                 else if ($className === 'parent') {
-                    return;
+                    if (!$this->currentClass) return;
+                    if (!$this->currentClass->extends) return;
+                    $className = $this->currentClass->extends->target;
                 }
                 else {
                     $className = $this->expandName($className);
