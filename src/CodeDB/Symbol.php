@@ -8,6 +8,7 @@ abstract class Symbol {
     public $length;
     public $parent;
     public $children;
+    public $backRefs;
 
     abstract function fqn(): string;
 
@@ -20,6 +21,21 @@ abstract class Symbol {
     public function addChild(Symbol $child) {
         $this->children[$child->name] = $child;
         $child->parent = $this;
+    }
+
+    public function addBackRef(Reference $ref) {
+        echo "Symbol::addBackRef ", $this->name, "\n";
+        $this->backRefs[] = $ref;
+    }
+
+    public function removeBackRef(Reference $ref) {
+        echo "Symbol::removeBackRef ", $this->name, "\n";
+        foreach($this->backRefs as $i => $br) {
+            if ($br === $ref) {
+                unset($this->backRefs[$i]);
+                return;
+            }
+        }
     }
 
     public function getFile() {
@@ -35,5 +51,20 @@ abstract class Symbol {
 
     public function getDescription() {
         return $this->fqn();
+    }
+
+    public function onReferenceDelete(Reference $ref) {
+        echo "Symbol::onReferenceDelete ", $this->name, "\n";
+        $this->removeBackRef($ref);
+    }
+
+    public function onDelete(Repository $repo) {
+        echo "Symbol::onDelete ", $this->name, "\n";
+        foreach($this->backRefs ?? [] as $br) {
+            $br->onSymbolDelete($repo);
+        }
+        foreach($this->children ?? [] as $child) {
+            $child->onDelete($repo);
+        }
     }
 }

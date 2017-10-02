@@ -14,4 +14,12 @@ class Interface_ extends Symbol {
     public function getDescription() {
         return 'interface '.$this->fqn();
     }
+
+    public function onDelete(Repository $repo) {
+        echo "Interface_::onDelete ", $this->name, "\n";
+        parent::onDelete($repo);
+        foreach($this->extends ?? [] as $ext) {
+            $ext->onSymbolDelete($repo);
+        }
+    }
 }

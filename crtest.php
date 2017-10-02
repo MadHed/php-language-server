@@ -141,3 +141,4 @@ echo "Memory used after serializing: ".bytes(memory_get_usage(true))."\n";
 
 global $totals;
 var_dump($totals);
+

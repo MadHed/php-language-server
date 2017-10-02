@@ -23,4 +23,25 @@ class Reference {
             return $this->target->getDescription();
         }
     }
+
+    public function onSymbolDelete(Repository $repo) {
+        echo "Reference::onSymbolDelete", "\n";
+        $this->target = $this->target->fqn();
+        $repo->references[] = $this;
+    }
+
+    public function onDelete(Repository $repo) {
+        echo "Reference::onDelete", "\n";
+        if ($this->target instanceof Symbol) {
+            $this->target->onReferenceDelete($this);
+        }
+
+        foreach ($repo->references as $key => $ref) {
+            if ($ref === $this) {
+                echo "Symbol::onDelete - unset", "\n";
+                unset($repo->references[$key]);
+                break;
+            }
+        }
+    }
 }

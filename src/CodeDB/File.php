@@ -9,6 +9,7 @@ class Diagnostic {
     public $message;
     public $start;
     public $length;
+    public $references;
 
     public function __construct($kind, $message, $start, $length)
     {
@@ -111,5 +112,13 @@ class File extends Symbol {
 
     public function getDescription() {
         return 'file '.$this->fqn();
+    }
+
+    public function onDelete(Repository $repo) {
+        echo "File::onDelete ", $this->name, "\n";
+        parent::onDelete($repo);
+        foreach($this->references ?? [] as $ref) {
+            $ref->onDelete($repo);
+        }
     }
 }

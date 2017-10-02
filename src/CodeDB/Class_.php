@@ -17,4 +17,15 @@ class Class_ extends Symbol {
     public function getDescription() {
         return 'class '.$this->fqn();
     }
+
+    public function onDelete(Repository $repo) {
+        echo "Class_::onDelete ", $this->name, "\n";
+        parent::onDelete($repo);
+        if ($this->extends) {
+            $this->extends->onSymbolDelete($repo);
+        }
+        foreach($this->implements ?? [] as $impl) {
+            $impl->onSymbolDelete($repo);
+        }
+    }
 }

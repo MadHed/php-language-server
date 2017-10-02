@@ -243,12 +243,14 @@ class Collector {
                     foreach($node->classInterfaceClause->interfaceNameList->children as $interfaceName) {
                         if ($interfaceName instanceof Node) {
                             $name = $interfaceName->getText();
-                            $this->repo->references[] = new Reference(
+                            $ref = new Reference(
                                 $this->file,
                                 $this->getStart($interfaceName),
                                 $this->getLength($interfaceName),
                                 $this->expandName($name)
                             );
+                            $this->currentClass->implements[] = $ref;
+                            $this->repo->references[] = $ref;
                         }
                     }
                 }
@@ -265,12 +267,14 @@ class Collector {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
                         if ($interfaceName instanceof Node) {
                             $name = $interfaceName->getText();
-                            $this->repo->references[] = new Reference(
+                            $ref = new Reference(
                                 $this->file,
                                 $this->getStart($interfaceName),
                                 $this->getLength($interfaceName),
                                 $this->expandName($name)
                             );
+                            $this->currentInterface->extends[] = $ref;
+                            $this->repo->references[] = $ref;
                         }
                     }
                 }
@@ -316,12 +320,14 @@ class Collector {
                     if (!$this->currentClass) return;
                     $start = $node->getStart();
                     $length = $node->getEndPosition() - $start;
-                    $this->repo->references[] = new Reference(
+                    $ref = new Reference(
                         $this->file,
                         $start,
                         $length,
                         $this->currentClass
                     );
+                    $this->currentClass->addBackRef($ref);
+                    $this->file->references[] = $ref;
                 }
                 else if (!\array_key_exists($name, $this->scope)) {
                     $var = new Variable($name, $this->getStart($node->name), $this->getLength($node->name));
@@ -332,12 +338,14 @@ class Collector {
                 else {
                     $start = $node->getStart();
                     $length = $node->getEndPosition() - $start;
-                    $this->repo->references[] = new Reference(
+                    $ref = new Reference(
                         $this->file,
                         $start,
                         $length,
                         $this->scope[$name]
                     );
+                    $this->scope[$name]->addBackRef($ref);
+                    $this->file->references[] = $ref;
                 }
             }
         }
@@ -353,12 +361,14 @@ class Collector {
                 else {
                     $start = $node->getStart();
                     $length = $node->getEndPosition() - $start;
-                    $this->repo->references[] = new Reference(
+                    $ref = new Reference(
                         $this->file,
                         $start,
                         $length,
                         $this->scope[$name]
                     );
+                    $this->scope[$name]->addBackRef($ref);
+                    $this->file->references[] = $ref;
                 }
             }
         }
@@ -383,12 +393,14 @@ class Collector {
             }
 
             $fqn = $this->expandName($name);
-            $this->repo->references[] = new Reference(
+            $ref = new Reference(
                 $this->file,
                 $this->getStart($node->classTypeDesignator),
                 $this->getLength($node->classTypeDesignator),
                 $fqn
             );
+            $this->file->references[] = $ref;
+            $this->repo->references[] = $ref;
         }
         else if ($node instanceof ScopedPropertyAccessExpression) {
             // ->callableExpression
@@ -422,18 +434,23 @@ class Collector {
                     $refName = $className.'::'.$memberName;
                 }
 
-                $this->repo->references[] = new Reference(
+                $ref = new Reference(
                     $this->file,
                     $this->getStart($node->scopeResolutionQualifier),
                     $this->getLength($node->scopeResolutionQualifier),
                     $className
                 );
-                $this->repo->references[] = new Reference(
+                $this->repo->references[] = $ref;
+                $this->file->references[] = $ref;
+
+                $ref = new Reference(
                     $this->file,
                     $this->getStart($node->memberName),
                     $this->getLength($node->memberName),
                     $refName
                 );
+                $this->repo->references[] = $ref;
+                $this->file->references[] = $ref;
             }
         }
         else if ($node instanceof BinaryExpression) {
@@ -445,12 +462,14 @@ class Collector {
                 )
             ) {
                 $className = $this->expandName($this->getText($node->rightOperand));
-                $this->repo->references[] = new Reference(
+                $ref = new Reference(
                     $this->file,
                     $this->getStart($node->rightOperand),
                     $this->getLength($node->rightOperand),
                     $className
                 );
+                $this->repo->references[] = $ref;
+                $this->file->references[] = $ref;
             }
         }
         else if ($node instanceof CallExpression) {
@@ -458,12 +477,14 @@ class Collector {
                 $node->callableExpression instanceof QualifiedName
             ) {
                 $funcName = $this->expandName($this->getText($node->callableExpression), true);
-                $this->repo->references[] = new Reference(
+                $ref = new Reference(
                     $this->file,
                     $this->getStart($node->callableExpression),
                     $this->getLength($node->callableExpression),
                     $funcName.'()'
                 );
+                $this->repo->references[] = $ref;
+                $this->file->references[] = $ref;
             }
         }
     }

@@ -347,14 +347,14 @@ class Repository {
     public function resolveReferences() {
         echo "resolveReferences()\n";
         $start = microtime(true);
-        $startmem = \memory_get_usage(true);
-        foreach($this->references as $ref) {
-            if (\is_string($ref->target)) {
-                if (isset($this->fqnMap[$ref->target])) {
-                    $ref->target = $this->fqnMap[$ref->target];
-                }
+        foreach($this->references as $i => $ref) {
+            if (isset($this->fqnMap[$ref->target])) {
+                $ref->target = $this->fqnMap[$ref->target];
+                $ref->target->addBackRef($ref);
+                unset($this->references[$i]);
             }
         }
+        echo ((int)((microtime(true)-$start)*1000)), "\n";
     }
 
     public function removeFile(string $uri) {
@@ -365,15 +365,19 @@ class Repository {
 
         $file = $this->files[$uri];
 
-        foreach($this->references as $i => $reference) {
+        echo "onDelete()\n";
+        $file->onDelete($this);
+
+        /*foreach($this->references as $i => $reference) {
             if ($reference->file === $file) {
                 unset($this->references[$i]);
             }
             else if (is_object($reference->target) && $reference->target->getFile() === $file) {
                 $reference->target = $reference->target->fqn();
             }
-        }
+        }*/
 
+        echo "unset()\n";
         unset($this->files[$uri]);
     }
 

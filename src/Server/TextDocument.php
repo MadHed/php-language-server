@@ -76,35 +76,22 @@ class TextDocument
             }
 
             $symbols = [];
-            if (is_array($file->children)) {
-                foreach($file->children as $ns) {
-                    yield null;
-                    $symbols[] = $ns;
-                    if (is_array($ns->children)) {
-                        foreach($ns->children as $sym) {
-                            $symbols[] = $sym;
-                            if (is_array($sym->children)) {
-                                foreach($sym->children as $syms) {
-                                    $symbols[] = $syms;
-                                }
-                            }
-                        }
+            foreach($file->children ?? [] as $ns) {
+                yield null;
+                $symbols[] = $ns;
+                foreach($ns->children ?? [] as $sym) {
+                    $symbols[] = $sym;
+                    foreach($sym->children ?? [] as $syms) {
+                        $symbols[] = $syms;
                     }
                 }
             }
 
             foreach($symbols as $sym) {
-                $count=0;
-                foreach($this->db->references as $ref) {
-                    if (is_object($ref->target) && $ref->target === $sym) {
-                        $count++;
-                    }
-                }
-
                 $cl = new CodeLens;
                 $cl->range = $file->getRange($sym->start, $sym->length);
                 $cmd = new Command;
-                $cmd->title = $count.' references';
+                $cmd->title = count($sym->backRefs ?? []).' references';
                 $cmd->command = '';
                 $cl->command = $cmd;
                 $codeLens[] = $cl;
@@ -288,10 +275,9 @@ class TextDocument
                 $sym = $ref->target;
             }
             if (!$sym) return [];
+            $backRefs = $sym->backRefs ?? [];
             $locations = [];
-            foreach($this->db->references as $ref) {
-                if ($ref->target !== $sym) continue;
-                if (!$ref->file instanceof \LanguageServer\CodeDB\File) continue;
+            foreach($backRefs as $ref) {
                 $locations[] = new Location(
                     $ref->file->name,
                     $ref->file->getRange($ref->start, $ref->length)
