@@ -350,21 +350,11 @@ class Repository {
                 if (isset($this->fqnMap[$ref->target])) {
                     $ref->target = $this->fqnMap[$ref->target];
                 }
-                else {
-                    $ref->file->addDiagnostic(new Diagnostic(
-                        0,
-                        'Unresolved symbol',
-                        $ref->range->start->line,
-                        $ref->range->start->character,
-                        $ref->range->end->line,
-                        $ref->range->end->character
-                    ));
-                }
             }
         }
     }
 
-    public function removeFile($uri) {
+    public function removeFile(string $uri) {
         if (!isset($this->files[$uri])) {
             return;
         }
@@ -383,7 +373,7 @@ class Repository {
         unset($this->files[$uri]);
     }
 
-    public function getReferenceAtPosition($file, $line, $character) {
+    public function getReferenceAtPosition(File $file, $line, $character) {
         foreach($this->references as $ref) {
             if ($ref->file === $file) {
                 if (!(($line === $ref->range->start->line && $character < $ref->range->start->character)
@@ -395,5 +385,15 @@ class Repository {
             }
         }
         return null;
+    }
+
+    public function getUnresolvedReferenceCount() {
+        $c = 0;
+        foreach($this->references as $ref) {
+            if (is_string($ref->target)) {
+                $c++;
+            }
+        }
+        return $c;
     }
 }

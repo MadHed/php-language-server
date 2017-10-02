@@ -7,6 +7,7 @@ use Microsoft\PhpParser\{
     Parser,
     Node,
     Token,
+    TokenKind,
     DiagnosticsProvider
 };
 
@@ -16,18 +17,23 @@ use Microsoft\PhpParser\Node\{
     PropertyDeclaration,
     Parameter,
     QualifiedName,
-    NamespaceUseClause
+    NamespaceUseClause,
+    ConstElement
 };
 
 use Microsoft\PhpParser\Node\Statement\{
     NamespaceDefinition,
     ClassDeclaration,
     InterfaceDeclaration,
-    FunctionDeclaration
+    FunctionDeclaration,
+    ConstDeclaration
 };
 
 use Microsoft\PhpParser\Node\Expression\{
-    ObjectCreationExpression
+    ObjectCreationExpression,
+    CallExpression,
+    ScopedPropertyAccessExpression,
+    BinaryExpression
 };
 
 class Collector {
@@ -59,14 +65,31 @@ class Collector {
             return $this->aliases[$name];
         }
 
-        if (\strlen($name) === 0 || $name[0] === '\\') {
+        if (\strlen($name) === 0) {
             return $name;
         }
-        else if ($this->namespace === null) {
-            return '\\'.$name;
+        else if ($name[0] === '\\') {
+            // fully qualified
+            return $name;
         }
         else {
-            return $this->namespace->fqn().'\\'.$name;
+            $parts = explode('\\', $name, 2);
+            if (isset($this->aliases[$parts[0]])) {
+                if (count($parts) > 1) {
+                    return $this->aliases[$parts[0]].'\\'.$parts[1];
+                }
+                else {
+                    return $this->aliases[$parts[0]];
+                }
+            }
+            else {
+                if ($this->namespace) {
+                    return $this->namespace->fqn().'\\'.$name;
+                }
+                else {
+                    return $name;
+                }
+            }
         }
     }
 
@@ -257,6 +280,18 @@ class Collector {
                 $this->currentFunction->range = $this->getRangeFromNode($node->name);
             }
         }
+        else if ($node instanceof ConstDeclaration) {
+            foreach($node->constElements as $el) {
+                if (!$el instanceof ConstElement) continue;
+                $name = $this->getText($el->name);
+                if ($name && $this->currentClass) {
+                    $co = new Constant($name);
+                    $co->range = $this->getRangeFromNode($el->name);
+                    $this->currentClass->addChild($co);
+                    $this->repo->fqnMap[$co->fqn()] = $co;
+                }
+            }
+        }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
             $name = $node->getName();
             if ($name) {
@@ -308,6 +343,53 @@ class Collector {
                 $this->getRangeFromNode($node->classTypeDesignator),
                 $fqn
             );
+        }
+        else if ($node instanceof ScopedPropertyAccessExpression) {
+            // ->callableExpression
+            // ? ScopedPropertyAccessExpression
+            // -> scopeResolutionQualifier !(Token|Node)
+            // -> memberName !Token
+            if (
+                $node->scopeResolutionQualifier instanceof Token
+                || $node->scopeResolutionQualifier instanceof QualifiedName
+                && $node->memberName instanceof Token
+            ) {
+                $className = $this->expandName($this->getText($node->scopeResolutionQualifier));
+                $memberName = $this->getText($node->memberName);
+                if ($node->parent instanceof CallExpression) {
+                    $refName = $className.'::'.$memberName.'()';
+                }
+                else {
+                    $refName = $className.'::'.$memberName;
+                }
+
+                $this->repo->references[] = new Reference(
+                    $this->file,
+                    $this->getRangeFromNode($node->scopeResolutionQualifier),
+                    $className
+                );
+                $this->repo->references[] = new Reference(
+                    $this->file,
+                    $this->getRangeFromNode($node->memberName),
+                    $refName
+                );
+            }
+        }
+        else if ($node instanceof BinaryExpression) {
+            if (
+                $node->operator->kind === TokenKind::InstanceOfKeyword
+                && (
+                    $node->rightOperand instanceof QualifiedName
+                    || $node->rightOperand instanceof Token
+                )
+            ) {
+                $className = $this->expandName($this->getText($node->rightOperand));
+                $this->repo->references[] = new Reference(
+                    $this->file,
+                    $this->getRangeFromNode($node->rightOperand),
+                    $className
+                );
+            }
         }
     }
 

@@ -229,6 +229,20 @@ class TextDocument
                     );
                 }
             }
+            foreach($this->db->references as $ref) {
+                if (is_string($ref->target) && $ref->file === $collector->file) {
+                    $diags[] = new Diagnostic(
+                        "Unresolved reference \"{$ref->target}\"",
+                        new Range(
+                            new Position($ref->range->start->line, $ref->range->start->character),
+                            new Position($ref->range->end->line, $ref->range->end->character)
+                        ),
+                        0,
+                        0,
+                        null
+                    );
+                }
+            }
             $this->client->textDocument->publishDiagnostics($textDocument->uri, $diags);
         });
         /* $document = $this->documentLoader->get($textDocument->uri);
@@ -282,6 +296,11 @@ class TextDocument
             if (!isset($this->db->files[$textDocument->uri])) return [];
             $file = $this->db->files[$textDocument->uri];
             $sym = $file->getSymbolAtPosition($position->line, $position->character);
+            if (!$sym) {
+                $ref = $this->db->getReferenceAtPosition($file, $position->line, $position->character);
+                if (!$ref || !$ref->target instanceof \LanguageServer\CodeDB\Symbol) return [];
+                $sym = $ref->target;
+            }
             if (!$sym) return [];
             $locations = [];
             foreach($this->db->references as $ref) {
@@ -379,7 +398,6 @@ class TextDocument
             $ref = $this->db->getReferenceAtPosition($file, $position->line, $position->character);
             if (!$ref) return [];
             if (!$ref->target instanceof \LanguageServer\CodeDB\Symbol) return [];
-            echo $ref->target->fqn();
             return new Location(
                 $ref->target->getFile()->name,
                 new Range(
@@ -429,7 +447,43 @@ class TextDocument
      */
     public function hover(TextDocumentIdentifier $textDocument, Position $position): Promise
     {
-        return coroutine(function () {yield null;});
+        return coroutine(function () use($textDocument, $position) {
+            yield null;
+            if (!isset($this->db->files[$textDocument->uri])) return null;
+            $file = $this->db->files[$textDocument->uri];
+            $ref = $this->db->getReferenceAtPosition($file, $position->line, $position->character);
+            if (!$ref) return null;
+            if (!$ref->target instanceof \LanguageServer\CodeDB\Symbol) return null;
+
+            if ($ref->target instanceof \LanguageServer\CodeDB\Class_) {
+                $text = "class {$ref->target->fqn()}";
+            }
+            else if ($ref->target instanceof \LanguageServer\CodeDB\Interface_) {
+                $text = "interface {$ref->target->fqn()}";
+            }
+            else if ($ref->target instanceof \LanguageServer\CodeDB\Constant) {
+                $text = "const {$ref->target->fqn()}";
+            }
+            else if ($ref->target instanceof \LanguageServer\CodeDB\Function_) {
+                $text = "function {$ref->target->fqn()}";
+            }
+            else if ($ref->target instanceof \LanguageServer\CodeDB\Namespace_) {
+                $text = "namespace {$ref->target->fqn()}";
+            }
+            else if ($ref->target instanceof \LanguageServer\CodeDB\File) {
+                $text = "File {$ref->target->fqn()}";
+            }
+            else {
+                $text = $ref->target->fqn();
+            }
+            return new Hover(
+                $text,
+                new Range(
+                    new Position($ref->range->start->line, $ref->range->start->character),
+                    new Position($ref->range->end->line, $ref->range->end->character)
+                )
+            );
+        });
         /* return coroutine(function () use ($textDocument, $position) {
             $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
             // Find the node under the cursor

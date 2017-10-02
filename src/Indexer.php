@@ -170,11 +170,22 @@ class Indexer
                     $collector = new \LanguageServer\CodeDB\Collector($this->db, $uri, $ast);
                     $collector->iterate($ast);
                 }
+            }
 
-                $diags = [];
-                if (is_array($this->db->files[$uri]->diagnostics)) {
-                    foreach($this->db->files[$uri]->diagnostics as $diag) {
-                        $diags[] = new Diagnostic(
+            $this->client->window->logMessage(MessageType::LOG, "Resolving references");
+            $start = microtime(true);
+            $this->db->resolveReferences();
+            $unresolved = $this->db->getUnresolvedReferenceCount();
+            $duration = (int)(microtime(true) - $start);
+            $this->client->window->logMessage(MessageType::LOG, "Resolved references in {$duration} seconds.");
+            $this->client->window->logMessage(MessageType::LOG, "{$unresolved} unresolved references remaining.");
+
+            $diags = [];
+            foreach ($files as $i => $uri) {
+                $file = $this->db->files[$uri];
+                if (is_array($file->diagnostics)) {
+                    foreach($file->diagnostics as $diag) {
+                        $diags[$uri][] = new Diagnostic(
                             $diag->message,
                             new Range(
                                 new Position($diag->startLine, $diag->startCharacter),
@@ -186,12 +197,26 @@ class Indexer
                         );
                     }
                 }
-                $this->client->textDocument->publishDiagnostics($uri, $diags);
             }
-
-            $this->client->window->logMessage(MessageType::LOG, "Resolving references");
-            $this->db->resolveReferences();
-            $this->client->window->logMessage(MessageType::LOG, "Resolved references.");
+            foreach($this->db->references as $ref) {
+                if (is_string($ref->target)) {
+                    $diags[$ref->file->name][] = new Diagnostic(
+                        "Unresolved reference \"{$ref->target}\"",
+                        new Range(
+                            new Position($ref->range->start->line, $ref->range->start->character),
+                            new Position($ref->range->end->line, $ref->range->end->character)
+                        ),
+                        0,
+                        0,
+                        null
+                    );
+                }
+            }
+            foreach($diags as $uri => $d) {
+                if ($d) {
+                    $this->client->textDocument->publishDiagnostics($uri, $d);
+                }
+            }
 
             $cache = $this->rootPath.'/phpls.cache';
             file_put_contents($cache, \serialize($this->db));
