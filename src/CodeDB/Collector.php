@@ -360,7 +360,18 @@ class Collector {
                 || $node->scopeResolutionQualifier instanceof QualifiedName
                 && $node->memberName instanceof Token
             ) {
-                $className = $this->expandName($this->getText($node->scopeResolutionQualifier));
+                $className = $this->getText($node->scopeResolutionQualifier);
+                if ($className === 'self' || $className === 'static') {
+                    if (!$this->currentClass) return;
+                    $className = $this->currentClass->fqn();
+                }
+                else if ($className === 'parent') {
+                    return;
+                }
+                else {
+                    $className = $this->expandName($className);
+                }
+
                 $memberName = $this->getText($node->memberName);
                 if ($node->parent instanceof CallExpression) {
                     $refName = $className.'::'.$memberName.'()';

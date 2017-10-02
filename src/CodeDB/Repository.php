@@ -345,6 +345,7 @@ class Repository {
     }
 
     public function resolveReferences() {
+        $start = microtime(true);
         foreach($this->references as $ref) {
             if (\is_string($ref->target)) {
                 if (isset($this->fqnMap[$ref->target])) {
@@ -352,6 +353,7 @@ class Repository {
                 }
             }
         }
+        echo 'Resolve step took ', (int)((microtime(true)-$start)*1000), "ms\n";
     }
 
     public function removeFile(string $uri) {
