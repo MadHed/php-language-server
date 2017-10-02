@@ -106,6 +106,8 @@ class Indexer
 
             $pattern = Path::makeAbsolute('**/*.php', $this->rootPath);
             $uris = yield $this->filesFinder->find($pattern);
+            $pattern = Path::makeAbsolute('**/*.php', $this->rootPath);
+            $uris = $uris + yield $this->filesFinder->find('E:\\Projekte\\php-language-server\\vendor\\jetbrains\\phpstorm-stubs\\**/*.php');
 
             $count = count($uris);
             $startTime = microtime(true);
@@ -187,10 +189,7 @@ class Indexer
                     foreach($file->diagnostics as $diag) {
                         $diags[$uri][] = new Diagnostic(
                             $diag->message,
-                            new Range(
-                                new Position($diag->startLine, $diag->startCharacter),
-                                new Position($diag->endLine, $diag->endCharacter)
-                            ),
+                            $diag->getRange($file),
                             0,
                             0,
                             null
@@ -202,10 +201,7 @@ class Indexer
                 if (is_string($ref->target)) {
                     $diags[$ref->file->name][] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
-                        new Range(
-                            new Position($ref->range->start->line, $ref->range->start->character),
-                            new Position($ref->range->end->line, $ref->range->end->character)
-                        ),
+                        $ref->file->getRange($ref->start, $ref->length),
                         0,
                         0,
                         null

@@ -95,7 +95,6 @@ class TextDocument
 
             foreach($symbols as $sym) {
                 $count=0;
-                yield timeout();
                 foreach($this->db->references as $ref) {
                     if (is_object($ref->target) && $ref->target === $sym) {
                         $count++;
@@ -103,8 +102,7 @@ class TextDocument
                 }
 
                 $cl = new CodeLens;
-                $cl->range = new Range(new Position($sym->range->start->line, $sym->range->start->character),
-                new Position($sym->range->end->line, $sym->range->end->character));
+                $cl->range = $file->getRange($sym->start, $sym->length);
                 $cmd = new Command;
                 $cmd->title = $count.' references';
                 $cmd->command = '';
@@ -126,6 +124,7 @@ class TextDocument
     public function documentSymbol(TextDocumentIdentifier $textDocument): Promise
     {
         return coroutine(function () use ($textDocument) {
+            $file = $this->db->files[$textDocument->uri];
             $symbols = (
                 new \LanguageServer\CodeDB\MultiIterator(
                     $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces(),
@@ -161,16 +160,7 @@ class TextDocument
                     $kind,
                     new \LanguageServer\Protocol\Location(
                         $textDocument->uri,
-                        new \LanguageServer\Protocol\Range(
-                            new \LanguageServer\Protocol\Position(
-                                $symbol->range->start->line,
-                                $symbol->range->start->character
-                            ),
-                            new \LanguageServer\Protocol\Position(
-                                $symbol->range->end->line,
-                                $symbol->range->end->character
-                            )
-                        )
+                        $file->getRange($symbol->start, $symbol->length)
                     ),
                     $symbol->parent ? $symbol->parent->fqn() : ''
                 );
@@ -215,15 +205,13 @@ class TextDocument
             $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $ast);
             $collector->iterate($ast);
             $this->db->resolveReferences();
+            $file = $collector->file;
             $diags = [];
-            if (is_array($collector->file->diagnostics)) {
-                foreach($collector->file->diagnostics as $diag) {
+            if (is_array($file->diagnostics)) {
+                foreach($file->diagnostics as $diag) {
                     $diags[] = new Diagnostic(
                         $diag->message,
-                        new Range(
-                            new Position($diag->startLine, $diag->startCharacter),
-                            new Position($diag->endLine, $diag->endCharacter)
-                        ),
+                        $diag->getRange($file),
                         0,
                         0,
                         null
@@ -231,13 +219,10 @@ class TextDocument
                 }
             }
             foreach($this->db->references as $ref) {
-                if (is_string($ref->target) && $ref->file === $collector->file) {
+                if (is_string($ref->target) && $ref->file === $file) {
                     $diags[] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
-                        new Range(
-                            new Position($ref->range->start->line, $ref->range->start->character),
-                            new Position($ref->range->end->line, $ref->range->end->character)
-                        ),
+                        $$file->getRange($ref->start, $ref->length),
                         0,
                         0,
                         null
@@ -309,10 +294,7 @@ class TextDocument
                 if (!$ref->file instanceof \LanguageServer\CodeDB\File) continue;
                 $locations[] = new Location(
                     $ref->file->name,
-                    new Range(
-                        new Position($ref->range->start->line, $ref->range->start->character),
-                        new Position($ref->range->end->line, $ref->range->end->character)
-                    )
+                    $ref->file->getRange($ref->start, $ref->length)
                 );
             }
             return $locations;
@@ -401,10 +383,7 @@ class TextDocument
             if (!$ref->target instanceof \LanguageServer\CodeDB\Symbol) return [];
             return new Location(
                 $ref->target->getFile()->name,
-                new Range(
-                    new Position($ref->target->range->start->line, $ref->target->range->start->character),
-                    new Position($ref->target->range->end->line, $ref->target->range->end->character)
-                )
+                $ref->file->getRange($ref->target->start, $ref->target->length)
             );
         });
         /* return coroutine(function () use ($textDocument, $position) {
@@ -456,69 +435,11 @@ class TextDocument
             if (!$ref) return null;
             if (!$ref->target instanceof \LanguageServer\CodeDB\Symbol) return null;
 
-            if ($ref->target instanceof \LanguageServer\CodeDB\Class_) {
-                $text = "class {$ref->target->fqn()}";
-            }
-            else if ($ref->target instanceof \LanguageServer\CodeDB\Interface_) {
-                $text = "interface {$ref->target->fqn()}";
-            }
-            else if ($ref->target instanceof \LanguageServer\CodeDB\Constant) {
-                $text = "const {$ref->target->fqn()}";
-            }
-            else if ($ref->target instanceof \LanguageServer\CodeDB\Function_) {
-                $text = "function {$ref->target->fqn()}";
-            }
-            else if ($ref->target instanceof \LanguageServer\CodeDB\Namespace_) {
-                $text = "namespace {$ref->target->fqn()}";
-            }
-            else if ($ref->target instanceof \LanguageServer\CodeDB\File) {
-                $text = "File {$ref->target->fqn()}";
-            }
-            else {
-                $text = $ref->target->fqn();
-            }
             return new Hover(
-                $text,
-                new Range(
-                    new Position($ref->range->start->line, $ref->range->start->character),
-                    new Position($ref->range->end->line, $ref->range->end->character)
-                )
+                $ref->getDescription(),
+                $ref->file->getRange($ref->start, $ref->length)
             );
         });
-        /* return coroutine(function () use ($textDocument, $position) {
-            $document = yield $this->documentLoader->getOrLoad($textDocument->uri);
-            // Find the node under the cursor
-            $node = $document->getNodeAtPosition($position);
-            if ($node === null) {
-                return new Hover([]);
-            }
-            $definedFqn = DefinitionResolver::getDefinedFqn($node);
-            while (true) {
-                if ($definedFqn) {
-                    // Support hover for definitions
-                    $def = $this->index->getDefinition($definedFqn);
-                } else {
-                    // Get the definition for whatever node is under the cursor
-                    $def = $this->definitionResolver->resolveReferenceNodeToDefinition($node);
-                }
-                // If no result was found and we are still indexing, try again after the index was updated
-                if ($def !== null || $this->index->isComplete()) {
-                    break;
-                }
-                yield waitForEvent($this->index, 'definition-added');
-            }
-            $range = Range::fromNode($node);
-            if ($def === null) {
-                return new Hover([], $range);
-            }
-            if ($def->declarationLine) {
-                $contents[] = new MarkedString('php', "<?php\n" . $def->declarationLine);
-            }
-            if ($def->documentation) {
-                $contents[] = $def->documentation;
-            }
-            return new Hover($contents, $range);
-        }); */
     }
 
     /**

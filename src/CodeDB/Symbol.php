@@ -4,14 +4,17 @@ namespace LanguageServer\CodeDB;
 
 abstract class Symbol {
     public $name;
-    public $range;
+    public $start;
+    public $length;
     public $parent;
     public $children;
 
     abstract function fqn(): string;
 
-    public function __construct(string $name) {
+    public function __construct(string $name, $start, $length) {
         $this->name = $name;
+        $this->start = $start;
+        $this->length = $length;
     }
 
     public function addChild(Symbol $child) {

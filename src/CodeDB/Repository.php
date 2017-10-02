@@ -346,6 +346,7 @@ class Repository {
 
     public function resolveReferences() {
         $start = microtime(true);
+        $startmem = \memory_get_usage(true);
         foreach($this->references as $ref) {
             if (\is_string($ref->target)) {
                 if (isset($this->fqnMap[$ref->target])) {
@@ -353,7 +354,9 @@ class Repository {
                 }
             }
         }
+        \gc_collect_cycles();
         echo 'Resolve step took ', (int)((microtime(true)-$start)*1000), "ms\n";
+        echo \memory_get_usage(true) - $startmem, "bytes\n";
     }
 
     public function removeFile(string $uri) {
@@ -376,12 +379,10 @@ class Repository {
     }
 
     public function getReferenceAtPosition(File $file, $line, $character) {
+        $offset = $file->positionToOffset($line, $character);
         foreach($this->references as $ref) {
             if ($ref->file === $file) {
-                if (!(($line === $ref->range->start->line && $character < $ref->range->start->character)
-                    || ($line === $ref->range->end->line && $character > $ref->range->end->character)
-                    || ($line < $ref->range->start->line || $line > $ref->range->end->line))
-                ) {
+                if ($offset >= $ref->start && $offset <= $ref->start + $ref->length) {
                     return $ref;
                 }
             }

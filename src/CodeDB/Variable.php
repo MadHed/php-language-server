@@ -4,16 +4,19 @@ namespace LanguageServer\CodeDB;
 
 class Variable extends Symbol {
 
-    public function __construct(string $name) {
-        parent::__construct($name);
+    public function __construct(string $name, $start, $length) {
+        parent::__construct($name, $start, $length);
     }
 
     public function fqn(): string {
-        if ($this->parent instanceof File) {
+        if ($this->parent instanceof Namespace_) {
             return $this->parent->fqn().'\\'.$this->name;
         }
-        else if ($this->parent instanceof Symbol) {
+        else if ($this->parent instanceof Class_) {
             return $this->parent->fqn().'::'.$this->name;
+        }
+        else if ($this->parent instanceof Function_) {
+            return $this->parent->fqn().'@'.$this->name;
         }
     }
 }

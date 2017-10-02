@@ -2,32 +2,63 @@
 
 namespace LanguageServer\CodeDB;
 
+use LanguageServer\Protocol\{Range, Position};
+
 class Diagnostic {
     public $kind;
     public $message;
-    public $startLine;
-    public $startCharacter;
-    public $endLine;
-    public $endCharacter;
+    public $start;
+    public $length;
 
-    public function __construct($kind, $message, $startLine, $startCharacter, $endLine, $endCharacter)
+    public function __construct($kind, $message, $start, $length)
     {
         $this->kind = $kind;
         $this->message = $message;
-        $this->startLine = $startLine;
-        $this->startCharacter = $startCharacter;
-        $this->endLine = $endLine;
-        $this->endCharacter = $endCharacter;
+        $this->start = $start;
+        $this->length = $length;
+    }
+
+    public function getRange(File $file) {
+        return $file->getRange($this->start, $this->length);
     }
 }
+
 class File extends Symbol {
     private $hash;
     public $parseTime = 0;
+    public $lineOffsets;
     public $diagnostics;
 
     public function __construct(string $name, string $content) {
-        parent::__construct($name);
+        parent::__construct($name, 0, strlen($content));
         $this->hash = \hash('SHA256', $content);
+
+        $this->lineOffsets[] = 0;
+        $offset = 1;
+        $len = strlen($content);
+        while ($offset < $len && ($offset = \strpos($content, "\n", $offset)) !== false) {
+            $this->lineOffsets[] = $offset + 1;
+            $offset++;
+        }
+    }
+
+    public function getRange($start, $length) {
+        return new Range(
+            $this->getPosition($start),
+            $this->getPosition($start + $length)
+        );
+    }
+
+    public function getPosition($offset) {
+        if ($offset < 0) return new Position(0, 0);
+
+        $num = count($this->lineOffsets);
+        for($i = 0; $i < $num; $i++) {
+            if ($this->lineOffsets[$i] > $offset) {
+                return new Position($i - 1, $offset - $this->lineOffsets[$i - 1]);
+            }
+        }
+        return new Position($num - 1, $offset - $this->lineOffsets[$num - 1]);
     }
 
     public function fqn(): string {
@@ -38,7 +69,17 @@ class File extends Symbol {
         return $this->hash;
     }
 
+    public function positionToOffset($line, $character) {
+        if ($line < 0) return 0;
+        $num = count($this->lineOffsets);
+        if ($line >= $num) return $this->lineOffsets[$num-1];
+
+        return $this->lineOffsets[$line] + $character;
+    }
+
     public function getSymbolAtPosition($line, $character) {
+        $offset = $this->positionToOffset($line, $character);
+
         $symbols = [];
         if (is_array($this->children)) {
             foreach($this->children as $ns) {
@@ -57,10 +98,7 @@ class File extends Symbol {
         }
 
         foreach($symbols as $sym) {
-            if (!(($line === $sym->range->start->line && $character < $sym->range->start->character)
-                || ($line === $sym->range->end->line && $character > $sym->range->end->character)
-                || ($line < $sym->range->start->line || $line > $sym->range->end->line))
-            ) {
+            if ($offset >= $sym->start && $offset <= $sym->start + $sym->length) {
                 return $sym;
             }
         }

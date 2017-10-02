@@ -3,8 +3,8 @@
 namespace LanguageServer\CodeDB;
 
 class Constant extends Symbol {
-    public function __construct(string $name) {
-        parent::__construct($name);
+    public function __construct(string $name, $start, $length) {
+        parent::__construct($name, $start, $length);
     }
 
     public function fqn(): string {

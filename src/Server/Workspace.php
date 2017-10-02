@@ -61,8 +61,11 @@ class Workspace
             $symbols = (
                 new \LanguageServer\CodeDB\MultiIterator(
                     $this->db->files()->namespaces(),
+                    $this->db->files()->namespaces()->functions(),
                     $this->db->files()->namespaces()->classes(),
-                    $this->db->files()->namespaces()->classes()->symbols()
+                    $this->db->files()->namespaces()->classes()->symbols(),
+                    $this->db->files()->namespaces()->interfaces(),
+                    $this->db->files()->namespaces()->interfaces()->symbols()
                 ));
 
             $symbols = $symbols->filter(\LanguageServer\CodeDB\nameContains($query));
@@ -71,11 +74,7 @@ class Workspace
             yield;
             $results = [];
             foreach($symbols as $symbol) {
-                $file = $symbol;
-                while ($file && !$file instanceof \LanguageServer\CodeDB\File) {
-                    $file = $file->parent;
-                }
-                if (!$file) continue;
+                $file = $symbol->getFile();
 
                 $kind = SymbolKind::CONSTANT;
                 if ($symbol instanceof \LanguageServer\CodeDB\Class_) {
@@ -102,16 +101,7 @@ class Workspace
                     $kind,
                     new \LanguageServer\Protocol\Location(
                         $file->name,
-                        new \LanguageServer\Protocol\Range(
-                            new \LanguageServer\Protocol\Position(
-                                $symbol->range->start->line,
-                                $symbol->range->start->character
-                            ),
-                            new \LanguageServer\Protocol\Position(
-                                $symbol->range->end->line,
-                                $symbol->range->end->character
-                            )
-                        )
+                        $file->getRange($symbol->start, $symbol->length)
                     ),
                     $symbol->parent ? $symbol->parent->fqn() : ''
                 );
