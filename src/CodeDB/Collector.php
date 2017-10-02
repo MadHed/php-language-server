@@ -282,16 +282,19 @@ class Collector {
             }
         }
         else if ($node instanceof ConstDeclaration || $node instanceof ClassConstDeclaration) {
-            echo get_class($node)."\n";
-            foreach($node->constElements as $el) {
-                echo get_class($el)."\n";
-                if (!$el instanceof ConstElement) continue;
-                $name = $this->getText($el->name);
-                if ($name && $this->currentClass) {
-                    $co = new Constant($name);
-                    $co->range = $this->getRangeFromNode($el->name);
-                    ($this->currentClass ?? $this->currentFunction ?? $this->getNamespace())->addChild($co);
-                    $this->repo->fqnMap[$co->fqn()] = $co;
+            foreach($node->constElements as $elements) {
+                if (!is_array($elements)) {
+                    $elements = [$elements];
+                }
+                foreach($elements as $el) {
+                    if (!$el instanceof ConstElement) continue;
+                    $name = $this->getText($el->name);
+                    if ($name && $this->currentClass) {
+                        $co = new Constant($name);
+                        $co->range = $this->getRangeFromNode($el->name);
+                        ($this->currentClass ?? $this->currentFunction ?? $this->getNamespace())->addChild($co);
+                        $this->repo->fqnMap[$co->fqn()] = $co;
+                    }
                 }
             }
         }

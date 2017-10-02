@@ -32,7 +32,7 @@ use Microsoft\PhpParser\Node;
 use Sabre\Event\Promise;
 use Sabre\Uri;
 use function LanguageServer\{
-    isVendored, waitForEvent, getPackageName
+    isVendored, waitForEvent, getPackageName, timeout
 };
 use function Sabre\Event\coroutine;
 
@@ -78,6 +78,7 @@ class TextDocument
             $symbols = [];
             if (is_array($file->children)) {
                 foreach($file->children as $ns) {
+                    yield null;
                     $symbols[] = $ns;
                     if (is_array($ns->children)) {
                         foreach($ns->children as $sym) {
@@ -94,8 +95,8 @@ class TextDocument
 
             foreach($symbols as $sym) {
                 $count=0;
+                yield timeout();
                 foreach($this->db->references as $ref) {
-                    yield null;
                     if (is_object($ref->target) && $ref->target === $sym) {
                         $count++;
                     }
