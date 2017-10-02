@@ -18,7 +18,8 @@ use Microsoft\PhpParser\Node\{
     Parameter,
     QualifiedName,
     NamespaceUseClause,
-    ConstElement
+    ConstElement,
+    ClassConstDeclaration
 };
 
 use Microsoft\PhpParser\Node\Statement\{
@@ -280,14 +281,16 @@ class Collector {
                 $this->currentFunction->range = $this->getRangeFromNode($node->name);
             }
         }
-        else if ($node instanceof ConstDeclaration) {
+        else if ($node instanceof ConstDeclaration || $node instanceof ClassConstDeclaration) {
+            echo get_class($node)."\n";
             foreach($node->constElements as $el) {
+                echo get_class($el)."\n";
                 if (!$el instanceof ConstElement) continue;
                 $name = $this->getText($el->name);
                 if ($name && $this->currentClass) {
                     $co = new Constant($name);
                     $co->range = $this->getRangeFromNode($el->name);
-                    $this->currentClass->addChild($co);
+                    ($this->currentClass ?? $this->currentFunction ?? $this->getNamespace())->addChild($co);
                     $this->repo->fqnMap[$co->fqn()] = $co;
                 }
             }
