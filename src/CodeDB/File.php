@@ -109,4 +109,7 @@ class File extends Symbol {
         $this->diagnostics[] = $diag;
     }
 
+    public function getDescription() {
+        return 'file '.$this->fqn();
+    }
 }

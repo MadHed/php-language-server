@@ -18,4 +18,8 @@ class Function_ extends Symbol {
             return $this->parent->fqn().'@'.$this->name.'()';
         }
     }
+
+    public function getDescription() {
+        return 'function '.$this->fqn();
+    }
 }

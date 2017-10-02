@@ -32,4 +32,8 @@ abstract class Symbol {
         } while ($node !== null);
         return null;
     }
+
+    public function getDescription() {
+        return $this->fqn();
+    }
 }

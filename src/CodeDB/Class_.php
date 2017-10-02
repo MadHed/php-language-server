@@ -13,4 +13,8 @@ class Class_ extends Symbol {
     public function fqn(): string {
         return $this->parent->fqn().'\\'.$this->name;
     }
+
+    public function getDescription() {
+        return 'class '.$this->fqn();
+    }
 }

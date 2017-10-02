@@ -12,4 +12,8 @@ class Namespace_ extends Symbol {
     public function fqn(): string {
         return ($this->name ? '\\' : '').$this->name;
     }
+
+    public function getDescription() {
+        return 'namespace '.$this->fqn();
+    }
 }

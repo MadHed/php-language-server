@@ -345,6 +345,7 @@ class Repository {
     }
 
     public function resolveReferences() {
+        echo "resolveReferences()\n";
         $start = microtime(true);
         $startmem = \memory_get_usage(true);
         foreach($this->references as $ref) {
@@ -354,12 +355,10 @@ class Repository {
                 }
             }
         }
-        \gc_collect_cycles();
-        echo 'Resolve step took ', (int)((microtime(true)-$start)*1000), "ms\n";
-        echo \memory_get_usage(true) - $startmem, "bytes\n";
     }
 
     public function removeFile(string $uri) {
+        echo "removeFile()\n";
         if (!isset($this->files[$uri])) {
             return;
         }

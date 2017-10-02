@@ -18,4 +18,8 @@ class Constant extends Symbol {
             return $this->parent->fqn().'@'.$this->name;
         }
     }
+
+    public function getDescription() {
+        return 'const '.$this->fqn();
+    }
 }
