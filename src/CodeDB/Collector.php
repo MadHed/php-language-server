@@ -349,37 +349,14 @@ class Collector {
                 }
             }*/
         }
-        else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
-            $name = $node->getName();
-            if ($name) {
-                if (!\array_key_exists($name, $this->scope)) {
-                    $var = new Variable($name, $this->getStart($node->name), $this->getLength($node->name));
-                    $this->scope[$name] = $var;
-                    $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
-                    $target->addChild($var);
-                }
-                else {
-                    $start = $node->getStart();
-                    $length = $node->getEndPosition() - $start;
-                    $ref = new Reference(
-                        $this->file,
-                        $start,
-                        $length,
-                        $this->scope[$name]
-                    );
-                    $this->scope[$name]->addBackRef($ref);
-                    $this->file->references[] = $ref;
-                }
-            }
-        }
         else if ($node instanceof \Microsoft\PhpParser\Node\Parameter) {
-            $name = $node->getName();
+            /*$name = $node->getName();
             if ($name) {
                 $var = new Variable($name, $this->getStart($node->variableName), $this->getLength($node->variableName));
                 $this->scope[$name] = $var;
                 $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
                 $target->addChild($var);
-            }
+            }*/
         }
         else if ($node instanceof ObjectCreationExpression) {
             if ($node->classTypeDesignator instanceof QualifiedName) {

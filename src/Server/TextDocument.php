@@ -192,31 +192,37 @@ class TextDocument
             $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $ast);
             $collector->iterate($ast);
             $this->db->resolveReferences();
-            $file = $collector->file;
+
             $diags = [];
-            if (is_array($file->diagnostics)) {
-                foreach($file->diagnostics as $diag) {
-                    $diags[] = new Diagnostic(
-                        $diag->message,
-                        $diag->getRange($file),
-                        0,
-                        0,
-                        null
-                    );
+            foreach ($this->db->files as $file) {
+                if (is_array($file->diagnostics)) {
+                    foreach($file->diagnostics as $diag) {
+                        $diags[$file->name][] = new Diagnostic(
+                            $diag->message,
+                            $diag->getRange($file),
+                            0,
+                            0,
+                            null
+                        );
+                    }
                 }
             }
             foreach($this->db->references as $refs) {
                 foreach($refs as $ref) {
-                    $diags[] = new Diagnostic(
+                    $diags[$ref->file->name][] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
-                        $$file->getRange($ref->start, $ref->length),
+                        $ref->file->getRange($ref->start, $ref->length),
                         0,
                         0,
                         null
                     );
                 }
             }
-            $this->client->textDocument->publishDiagnostics($textDocument->uri, $diags);
+            foreach($diags as $uri => $d) {
+                if ($d) {
+                    $this->client->textDocument->publishDiagnostics($uri, $d);
+                }
+            }
         });
         /* $document = $this->documentLoader->get($textDocument->uri);
         $document->updateContent($contentChanges[0]->text);
