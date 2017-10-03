@@ -127,7 +127,7 @@ class Collector {
         else {
             $start = $end = 0;
         }
-        return PositionUtilities::getRangeFromPositionInFile($start, $end - $start, $this->src);
+        return PositionUtilities::getRangeFromPosition($start, $end - $start, $this->src->fileContents);
     }
 
     private function getStart($node) {
