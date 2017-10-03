@@ -20,6 +20,6 @@ class Function_ extends Symbol {
     }
 
     public function getDescription() {
-        return 'function '.$this->fqn();
+        return "<?php\nfunction ".$this->fqn();
     }
 }

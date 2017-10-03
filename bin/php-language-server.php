@@ -8,6 +8,8 @@ $options = getopt('', ['tcp::', 'tcp-server::', 'memory-limit::']);
 
 ini_set('memory_limit', $options['memory-limit'] ?? '4G');
 
+error_reporting(E_ALL);
+
 foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../autoload.php', __DIR__ . '/../vendor/autoload.php'] as $file) {
     if (file_exists($file)) {
         require $file;

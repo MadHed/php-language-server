@@ -21,6 +21,6 @@ class Variable extends Symbol {
     }
 
     public function getDescription() {
-        return 'var '.$this->fqn();
+        return "<?php\nvar ".$this->fqn();
     }
 }

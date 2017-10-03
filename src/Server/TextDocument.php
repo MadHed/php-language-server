@@ -205,8 +205,8 @@ class TextDocument
                     );
                 }
             }
-            foreach($this->db->references as $ref) {
-                if (is_string($ref->target) && $ref->file === $file) {
+            foreach($this->db->references as $refs) {
+                foreach($refs as $ref) {
                     $diags[] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
                         $$file->getRange($ref->start, $ref->length),
@@ -270,8 +270,8 @@ class TextDocument
             $file = $this->db->files[$textDocument->uri];
             $sym = $file->getSymbolAtPosition($position->line, $position->character);
             if (!$sym) {
-                $ref = $this->db->getReferenceAtPosition($file, $position->line, $position->character);
-                if (!$ref || !$ref->target instanceof \LanguageServer\CodeDB\Symbol) return [];
+                $ref = $file->getReferenceAtPosition($position->line, $position->character);
+                if (!$ref || $ref->isUnresolved()) return [];
                 $sym = $ref->target;
             }
             if (!$sym) return [];
@@ -364,9 +364,9 @@ class TextDocument
             yield null;
             if (!isset($this->db->files[$textDocument->uri])) return [];
             $file = $this->db->files[$textDocument->uri];
-            $ref = $this->db->getReferenceAtPosition($file, $position->line, $position->character);
+            $ref = $file->getReferenceAtPosition($position->line, $position->character);
             if (!$ref) return [];
-            if (!$ref->target instanceof \LanguageServer\CodeDB\Symbol) return [];
+            if ($ref->isUnresolved()) return [];
             return new Location(
                 $ref->target->getFile()->name,
                 $ref->file->getRange($ref->target->start, $ref->target->length)
@@ -417,12 +417,15 @@ class TextDocument
             yield null;
             if (!isset($this->db->files[$textDocument->uri])) return null;
             $file = $this->db->files[$textDocument->uri];
-            $ref = $this->db->getReferenceAtPosition($file, $position->line, $position->character);
+            $ref = $file->getReferenceAtPosition($position->line, $position->character);
             if (!$ref) return null;
-            if (!$ref->target instanceof \LanguageServer\CodeDB\Symbol) return null;
+            if ($ref->isUnresolved()) return null;
 
             return new Hover(
-                $ref->getDescription(),
+                new MarkedString(
+                    'php',
+                    $ref->getDescription()
+                ),
                 $ref->file->getRange($ref->start, $ref->length)
             );
         });

@@ -78,6 +78,22 @@ class File extends Symbol {
         return $this->lineOffsets[$line] + $character;
     }
 
+    public function getReferenceAtPosition($line, $character) {
+        $offset = $this->positionToOffset($line, $character);
+
+        foreach($this->references ?? [] as $ref) {
+            if ($offset >= $ref->start && $offset <= $ref->start + $ref->length) {
+                return $ref;
+            }
+        }
+
+        foreach($this->children ?? [] as $child) {
+            $ref = $child->getReferenceAtOffset($offset);
+            if ($ref) return $ref;
+        }
+        return null;
+    }
+
     public function getSymbolAtPosition($line, $character) {
         $offset = $this->positionToOffset($line, $character);
 
@@ -91,6 +107,11 @@ class File extends Symbol {
                         if (is_array($sym->children)) {
                             foreach($sym->children as $syms) {
                                 $symbols[] = $syms;
+                                if (is_array($syms->children)) {
+                                    foreach($syms->children as $symss) {
+                                        $symbols[] = $symss;
+                                    }
+                                }
                             }
                         }
                     }
@@ -111,11 +132,10 @@ class File extends Symbol {
     }
 
     public function getDescription() {
-        return 'file '.$this->fqn();
+        return "<?php\n//File: ".$this->fqn();
     }
 
     public function onDelete(Repository $repo) {
-        echo "File::onDelete ", $this->name, "\n";
         parent::onDelete($repo);
         foreach($this->references ?? [] as $ref) {
             $ref->onDelete($repo);

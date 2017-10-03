@@ -24,13 +24,11 @@ abstract class Symbol {
     }
 
     public function addBackRef(Reference $ref) {
-        echo "Symbol::addBackRef ", $this->name, "\n";
         $this->backRefs[] = $ref;
     }
 
     public function removeBackRef(Reference $ref) {
-        echo "Symbol::removeBackRef ", $this->name, "\n";
-        foreach($this->backRefs as $i => $br) {
+        foreach($this->backRefs ?? [] as $i => $br) {
             if ($br === $ref) {
                 unset($this->backRefs[$i]);
                 return;
@@ -50,21 +48,27 @@ abstract class Symbol {
     }
 
     public function getDescription() {
-        return $this->fqn();
+        return "<?php\n//".$this->fqn();
     }
 
     public function onReferenceDelete(Reference $ref) {
-        echo "Symbol::onReferenceDelete ", $this->name, "\n";
         $this->removeBackRef($ref);
     }
 
     public function onDelete(Repository $repo) {
-        echo "Symbol::onDelete ", $this->name, "\n";
         foreach($this->backRefs ?? [] as $br) {
             $br->onSymbolDelete($repo);
         }
         foreach($this->children ?? [] as $child) {
             $child->onDelete($repo);
         }
+    }
+
+    public function getReferenceAtOffset($offset) {
+        foreach($this->children ?? [] as $child) {
+            $ref = $child->getReferenceAtOffset($offset);
+            if ($ref) return $ref;
+        }
+        return null;
     }
 }

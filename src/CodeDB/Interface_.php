@@ -3,6 +3,8 @@
 namespace LanguageServer\CodeDB;
 
 class Interface_ extends Symbol {
+    public $extends;
+
     public function __construct(string $name, $start, $length) {
         parent::__construct($name, $start, $length);
     }
@@ -12,14 +14,31 @@ class Interface_ extends Symbol {
     }
 
     public function getDescription() {
-        return 'interface '.$this->fqn();
+        return "<?php\ninterface ".$this->fqn();
     }
 
     public function onDelete(Repository $repo) {
-        echo "Interface_::onDelete ", $this->name, "\n";
         parent::onDelete($repo);
         foreach($this->extends ?? [] as $ext) {
             $ext->onSymbolDelete($repo);
         }
+    }
+
+    public function getReferenceAtOffset($offset) {
+        foreach($this->extends ?? [] as $ext) {
+            if (
+                $offset >= $ext->start
+                && $offset <= $ext->start + $ext->length
+            ) {
+                return $ext;
+            }
+        }
+
+        foreach($this->children ?? [] as $child) {
+            $ref = $child->getReferenceAtOffset($offset);
+            if ($ref) return $ref;
+        }
+
+        return null;
     }
 }

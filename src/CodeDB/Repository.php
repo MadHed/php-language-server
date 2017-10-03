@@ -345,60 +345,56 @@ class Repository {
     }
 
     public function resolveReferences() {
-        echo "resolveReferences()\n";
         $start = microtime(true);
-        foreach($this->references as $i => $ref) {
-            if (isset($this->fqnMap[$ref->target])) {
-                $ref->target = $this->fqnMap[$ref->target];
-                $ref->target->addBackRef($ref);
-                unset($this->references[$i]);
+        foreach($this->references as $fqn => $refs) {
+            if (isset($this->fqnMap[$fqn])) {
+                $target = $this->fqnMap[$fqn];
+                foreach($refs as $ref) {
+                    $ref->target = $target;
+                    $ref->target->addBackRef($ref);
+                }
+                unset($this->references[$fqn]);
             }
         }
-        echo ((int)((microtime(true)-$start)*1000)), "\n";
+        echo "resolveReferences() ", (int)((microtime(true)-$start)*1000), "ms\n";
+    }
+
+    public function addUnresolvedReference(Reference $ref) {
+        $fqn = $ref->target instanceof Symbol ? $ref->target->fqn() : $ref->target;
+        if (!isset($this->references[$fqn])) {
+            $this->references[$fqn] = [];
+        }
+        $this->references[$fqn][] = $ref;
+        $ref->target = $fqn;
+    }
+
+    public function removeUnresolvedReference(Reference $ref) {
+        $fqn = $ref->target instanceof Symbol ? $ref->target->fqn() : $ref->target;
+        if (!isset($this->references[$fqn])) return;
+        foreach($this->references[$fqn] as $i => $r) {
+            if ($r === $ref) {
+                unset($this->references[$fqn][$i]);
+                return;
+            }
+        }
     }
 
     public function removeFile(string $uri) {
-        echo "removeFile()\n";
+        $start = microtime(true);
         if (!isset($this->files[$uri])) {
             return;
         }
 
         $file = $this->files[$uri];
-
-        echo "onDelete()\n";
         $file->onDelete($this);
-
-        /*foreach($this->references as $i => $reference) {
-            if ($reference->file === $file) {
-                unset($this->references[$i]);
-            }
-            else if (is_object($reference->target) && $reference->target->getFile() === $file) {
-                $reference->target = $reference->target->fqn();
-            }
-        }*/
-
-        echo "unset()\n";
         unset($this->files[$uri]);
-    }
-
-    public function getReferenceAtPosition(File $file, $line, $character) {
-        $offset = $file->positionToOffset($line, $character);
-        foreach($this->references as $ref) {
-            if ($ref->file === $file) {
-                if ($offset >= $ref->start && $offset <= $ref->start + $ref->length) {
-                    return $ref;
-                }
-            }
-        }
-        return null;
+        echo "removeFile() ", (int)((microtime(true)-$start)*1000), "ms\n";
     }
 
     public function getUnresolvedReferenceCount() {
         $c = 0;
-        foreach($this->references as $ref) {
-            if (is_string($ref->target)) {
-                $c++;
-            }
+        foreach($this->references as $refs) {
+            $c += count($refs);
         }
         return $c;
     }

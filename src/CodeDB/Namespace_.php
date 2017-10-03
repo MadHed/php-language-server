@@ -14,6 +14,6 @@ class Namespace_ extends Symbol {
     }
 
     public function getDescription() {
-        return 'namespace '.$this->fqn();
+        return "<?php\nnamespace ".$this->fqn();
     }
 }

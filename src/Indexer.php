@@ -197,8 +197,8 @@ class Indexer
                     }
                 }
             }
-            foreach($this->db->references as $ref) {
-                if (is_string($ref->target)) {
+            foreach($this->db->references as $refs) {
+                foreach($refs as $ref) {
                     $diags[$ref->file->name][] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
                         $ref->file->getRange($ref->start, $ref->length),

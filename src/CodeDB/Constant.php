@@ -20,6 +20,6 @@ class Constant extends Symbol {
     }
 
     public function getDescription() {
-        return 'const '.$this->fqn();
+        return "<?php\nconst ".$this->fqn();
     }
 }

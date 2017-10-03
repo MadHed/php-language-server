@@ -237,7 +237,7 @@ class Collector {
                         $this->expandName($className)
                     );
                     $this->currentClass->extends = $ref;
-                    $this->repo->references[] = $ref;
+                    $this->repo->addUnresolvedReference($ref);
                 }
                 if ($node->classInterfaceClause && $node->classInterfaceClause->interfaceNameList) {
                     foreach($node->classInterfaceClause->interfaceNameList->children as $interfaceName) {
@@ -250,7 +250,7 @@ class Collector {
                                 $this->expandName($name)
                             );
                             $this->currentClass->implements[] = $ref;
-                            $this->repo->references[] = $ref;
+                            $this->repo->addUnresolvedReference($ref);
                         }
                     }
                 }
@@ -274,7 +274,7 @@ class Collector {
                                 $this->expandName($name)
                             );
                             $this->currentInterface->extends[] = $ref;
-                            $this->repo->references[] = $ref;
+                            $this->repo->addUnresolvedReference($ref);
                         }
                     }
                 }
@@ -314,7 +314,7 @@ class Collector {
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
-            $name = $node->getName();
+            /*$name = $node->getName();
             if ($name) {
                 if ($name === 'this') {
                     if (!$this->currentClass) return;
@@ -347,7 +347,7 @@ class Collector {
                     $this->scope[$name]->addBackRef($ref);
                     $this->file->references[] = $ref;
                 }
-            }
+            }*/
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
             $name = $node->getName();
@@ -400,7 +400,7 @@ class Collector {
                 $fqn
             );
             $this->file->references[] = $ref;
-            $this->repo->references[] = $ref;
+            $this->repo->addUnresolvedReference($ref);
         }
         else if ($node instanceof ScopedPropertyAccessExpression) {
             // ->callableExpression
@@ -440,7 +440,7 @@ class Collector {
                     $this->getLength($node->scopeResolutionQualifier),
                     $className
                 );
-                $this->repo->references[] = $ref;
+                $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;
 
                 $ref = new Reference(
@@ -449,7 +449,7 @@ class Collector {
                     $this->getLength($node->memberName),
                     $refName
                 );
-                $this->repo->references[] = $ref;
+                $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;
             }
         }
@@ -468,7 +468,7 @@ class Collector {
                     $this->getLength($node->rightOperand),
                     $className
                 );
-                $this->repo->references[] = $ref;
+                $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;
             }
         }
@@ -483,7 +483,7 @@ class Collector {
                     $this->getLength($node->callableExpression),
                     $funcName.'()'
                 );
-                $this->repo->references[] = $ref;
+                $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;
             }
         }

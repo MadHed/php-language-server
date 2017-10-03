@@ -25,23 +25,23 @@ class Reference {
     }
 
     public function onSymbolDelete(Repository $repo) {
-        echo "Reference::onSymbolDelete", "\n";
-        $this->target = $this->target->fqn();
-        $repo->references[] = $this;
+        $repo->addUnresolvedReference($this);
     }
 
     public function onDelete(Repository $repo) {
-        echo "Reference::onDelete", "\n";
         if ($this->target instanceof Symbol) {
             $this->target->onReferenceDelete($this);
         }
-
-        foreach ($repo->references as $key => $ref) {
-            if ($ref === $this) {
-                echo "Symbol::onDelete - unset", "\n";
-                unset($repo->references[$key]);
-                break;
-            }
+        else {
+            $repo->removeUnresolvedReference($this);
         }
+    }
+
+    public function isResolved() {
+        return $this->target instanceof Symbol;
+    }
+
+    public function isUnresolved() {
+        return !$this->isResolved();
     }
 }
