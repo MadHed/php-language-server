@@ -10,7 +10,7 @@ class Interface_ extends Symbol {
     }
 
     public function fqn(): string {
-        return $this->parent->fqn().'\\'.$this->name;
+        return $this->parent->fqn().'\\'.strtolower($this->name);
     }
 
     public function getDescription() {

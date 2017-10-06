@@ -89,7 +89,7 @@ class Collector {
                     return $this->namespace->fqn().'\\'.$name;
                 }
                 else {
-                    return $name;
+                    return '\\'.$name;
                 }
             }
         }
@@ -157,6 +157,7 @@ class Collector {
 
     private function addAlias($name, $alias = null) {
         if ($alias !== null) {
+            if ($name[0] !== '\\') $name = '\\'.$name;
             $this->aliases[$alias] = $name;
             return;
         }
@@ -234,7 +235,7 @@ class Collector {
                         $this->file,
                         $this->getStart($node->classBaseClause->baseClass),
                         $this->getLength($node->classBaseClause->baseClass),
-                        $this->expandName($className)
+                        strtolower($this->expandName($className))
                     );
                     $this->currentClass->extends = $ref;
                     $this->repo->addUnresolvedReference($ref);
@@ -247,7 +248,7 @@ class Collector {
                                 $this->file,
                                 $this->getStart($interfaceName),
                                 $this->getLength($interfaceName),
-                                $this->expandName($name)
+                                strtolower($this->expandName($name))
                             );
                             $this->currentClass->implements[] = $ref;
                             $this->repo->addUnresolvedReference($ref);
@@ -271,7 +272,7 @@ class Collector {
                                 $this->file,
                                 $this->getStart($interfaceName),
                                 $this->getLength($interfaceName),
-                                $this->expandName($name)
+                                strtolower($this->expandName($name))
                             );
                             $this->currentInterface->extends[] = $ref;
                             $this->repo->addUnresolvedReference($ref);
@@ -369,12 +370,19 @@ class Collector {
                 return;
             }
 
-            $fqn = $this->expandName($name);
+            if ($name === 'self' || $name === 'static') {
+                if (!$this->currentClass) return;
+                $fqn = $this->currentClass->fqn();
+            }
+            else {
+                $fqn = $this->expandName($name);
+            }
+
             $ref = new Reference(
                 $this->file,
                 $this->getStart($node->classTypeDesignator),
                 $this->getLength($node->classTypeDesignator),
-                $fqn
+                strtolower($fqn)
             );
             $this->file->references[] = $ref;
             $this->repo->addUnresolvedReference($ref);
@@ -405,17 +413,18 @@ class Collector {
 
                 $memberName = $this->getText($node->memberName);
                 if ($node->parent instanceof CallExpression) {
-                    $refName = $className.'::'.$memberName.'()';
+                    $refName = strtolower($className.'::'.$memberName.'()');
                 }
                 else {
-                    $refName = $className.'::'.$memberName;
+                    if ($memberName === 'class') return;
+                    $refName = strtolower($className).'::'.$memberName;
                 }
 
                 $ref = new Reference(
                     $this->file,
                     $this->getStart($node->scopeResolutionQualifier),
                     $this->getLength($node->scopeResolutionQualifier),
-                    $className
+                    strtolower($className)
                 );
                 $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;
@@ -443,7 +452,7 @@ class Collector {
                     $this->file,
                     $this->getStart($node->rightOperand),
                     $this->getLength($node->rightOperand),
-                    $className
+                    strtolower($className)
                 );
                 $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;
@@ -458,7 +467,7 @@ class Collector {
                     $this->file,
                     $this->getStart($node->callableExpression),
                     $this->getLength($node->callableExpression),
-                    $funcName.'()'
+                    strtolower($funcName.'()')
                 );
                 $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;

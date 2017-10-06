@@ -104,10 +104,12 @@ class Indexer
     {
         return coroutine(function () {
 
+            $pattern = Path::makeAbsolute('**/*.php', __DIR__ . '/../vendor/jetbrains/phpstorm-stubs');
+            $stubs = yield $this->filesFinder->find($pattern);
+
             $pattern = Path::makeAbsolute('**/*.php', $this->rootPath);
             $uris = yield $this->filesFinder->find($pattern);
-            $pattern = Path::makeAbsolute('**/*.php', $this->rootPath);
-            $uris = $uris + yield $this->filesFinder->find('E:\\Projekte\\php-language-server\\vendor\\jetbrains\\phpstorm-stubs\\**/*.php');
+            $uris = array_merge($stubs, $uris);
 
             $count = count($uris);
             $startTime = microtime(true);
@@ -122,6 +124,8 @@ class Indexer
                 // Source file
                 $source[] = $uri;
             }
+
+            fwrite(STDERR, print_r($uris, true));
 
             // Index source
             // Definitions and static references
@@ -181,6 +185,25 @@ class Indexer
             $duration = (int)(microtime(true) - $start);
             $this->client->window->logMessage(MessageType::LOG, "Resolved references in {$duration} seconds.");
             $this->client->window->logMessage(MessageType::LOG, "{$unresolved} unresolved references remaining.");
+            $this->client->window->logMessage(MessageType::LOG, "----------------------------------------------");
+            $numsyms = 0;
+            $numrefs = 0;
+            foreach($this->db->files as $file) {
+                $numsyms++;
+                foreach($file->children ?? [] as $namespace) {
+                    $numsyms++;
+                    foreach($namespace->children ?? [] as $sym1) {
+                        $numsyms++;
+                        foreach($sym1->children ?? [] as $sym2) {
+                            $numsyms++;
+                            foreach($sym2->children ?? [] as $sym3) {
+                                $numsyms++;
+                            }
+                        }
+                    }
+                }
+            }
+            $this->client->window->logMessage(MessageType::LOG, "{$numsyms} Symbols");
 
             $diags = [];
             foreach ($files as $i => $uri) {

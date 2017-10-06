@@ -23,7 +23,7 @@ class FileSystemFilesFinder implements FilesFinder
             $uris = [];
             foreach (new GlobIterator($glob) as $path) {
                 // Exclude any directories that also match the glob pattern
-                if (!is_dir($path)) {
+                if (!is_dir($path) && is_readable($path)) {
                     $uris[] = pathToUri($path);
                 }
 

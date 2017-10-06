@@ -10,7 +10,7 @@ class Namespace_ extends Symbol {
     }
 
     public function fqn(): string {
-        return ($this->name ? '\\' : '').$this->name;
+        return ($this->name ? '\\' : '').strtolower($this->name);
     }
 
     public function getDescription() {
