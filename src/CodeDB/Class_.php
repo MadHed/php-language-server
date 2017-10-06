@@ -31,16 +31,16 @@ class Class_ extends Symbol {
     public function getReferenceAtOffset($offset) {
         if (
             $this->extends
-            && $offset >= $this->extends->start
-            && $offset <= $this->extends->start + $this->extends->length
+            && $offset >= $this->extends->getStart()
+            && $offset <= $this->extends->getStart() + $this->extends->getLength()
         ) {
             return $this->extends;
         }
 
         foreach($this->implements ?? [] as $impl) {
             if (
-                $offset >= $impl->start
-                && $offset <= $impl->start + $impl->length
+                $offset >= $impl->getStart()
+                && $offset <= $impl->getStart() + $impl->getLength()
             ) {
                 return $impl;
             }

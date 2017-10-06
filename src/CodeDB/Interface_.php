@@ -27,8 +27,8 @@ class Interface_ extends Symbol {
     public function getReferenceAtOffset($offset) {
         foreach($this->extends ?? [] as $ext) {
             if (
-                $offset >= $ext->start
-                && $offset <= $ext->start + $ext->length
+                $offset >= $ext->getStart()
+                && $offset <= $ext->getStart() + $ext->getLength()
             ) {
                 return $ext;
             }

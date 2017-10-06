@@ -82,7 +82,7 @@ class File extends Symbol {
         $offset = $this->positionToOffset($line, $character);
 
         foreach($this->references ?? [] as $ref) {
-            if ($offset >= $ref->start && $offset <= $ref->start + $ref->length) {
+            if ($offset >= $ref->getStart() && $offset <= $ref->getStart() + $ref->getLength()) {
                 return $ref;
             }
         }
@@ -120,7 +120,7 @@ class File extends Symbol {
         }
 
         foreach($symbols as $sym) {
-            if ($offset >= $sym->start && $offset <= $sym->start + $sym->length) {
+            if ($offset >= $sym->getStart() && $offset <= $sym->getStart() + $sym->getLength()) {
                 return $sym;
             }
         }

@@ -190,6 +190,7 @@ class Indexer
             $numrefs = 0;
             foreach($this->db->files as $file) {
                 $numsyms++;
+                $numrefs += count($file->references ?? []);
                 foreach($file->children ?? [] as $namespace) {
                     $numsyms++;
                     foreach($namespace->children ?? [] as $sym1) {
@@ -204,6 +205,7 @@ class Indexer
                 }
             }
             $this->client->window->logMessage(MessageType::LOG, "{$numsyms} Symbols");
+            $this->client->window->logMessage(MessageType::LOG, "{$numrefs} References");
 
             $diags = [];
             foreach ($files as $i => $uri) {
@@ -224,7 +226,7 @@ class Indexer
                 foreach($refs as $ref) {
                     $diags[$ref->file->name][] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
-                        $ref->file->getRange($ref->start, $ref->length),
+                        $ref->file->getRange($ref->getStart(), $ref->getLength()),
                         0,
                         0,
                         null

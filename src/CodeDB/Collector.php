@@ -141,8 +141,8 @@ class Collector {
 
     private function nodeOffsetToSymbol($node, $symbol) {
         if ($node === null) return;
-        $symbol->start = $node instanceof Node ? $node->getStart() : $node->getStartPosition();
-        $symbol->length = $node->getEndPosition() - $symbol->start;
+        $symbol->setStart($node instanceof Node ? $node->getStart() : $node->getStartPosition());
+        $symbol->setLength($node->getEndPosition() - $symbol->getStart());
     }
 
     private function getText($node) {

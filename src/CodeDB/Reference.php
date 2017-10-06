@@ -4,14 +4,14 @@ namespace LanguageServer\CodeDB;
 
 class Reference {
     public $file;
-    public $start;
-    public $length;
+    public $range;
     public $target;
 
     public function __construct($file, $start, $length, $target) {
         $this->file = $file;
-        $this->start = $start;
-        $this->length = $length;
+        $this->range = 0;
+        $this->setStart($start);
+        $this->setLength($length);
         $this->target = $target;
     }
 
@@ -43,5 +43,21 @@ class Reference {
 
     public function isUnresolved() {
         return !$this->isResolved();
+    }
+
+    public function getStart() {
+        return $this->range & 0xffffffff;
+    }
+
+    public function getLength() {
+        return $this->range >> 32;
+    }
+
+    public function setStart($val) {
+        $this->range = $this->range & 0xffffffff00000000 | ($val & 0xffffffff);
+    }
+
+    public function setLength($val) {
+        $this->range = $this->range & 0xffffffff | ($val << 32);
     }
 }

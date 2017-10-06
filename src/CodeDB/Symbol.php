@@ -4,8 +4,7 @@ namespace LanguageServer\CodeDB;
 
 abstract class Symbol {
     public $name;
-    public $start;
-    public $length;
+    public $range;
     public $parent;
     public $children;
     public $backRefs;
@@ -14,8 +13,9 @@ abstract class Symbol {
 
     public function __construct(string $name, $start, $length) {
         $this->name = $name;
-        $this->start = $start;
-        $this->length = $length;
+        $this->range = 0;
+        $this->setStart($start);
+        $this->setLength($length);
     }
 
     public function addChild(Symbol $child) {
@@ -70,5 +70,21 @@ abstract class Symbol {
             if ($ref) return $ref;
         }
         return null;
+    }
+
+    public function getStart() {
+        return $this->range & 0xffffffff;
+    }
+
+    public function getLength() {
+        return $this->range >> 32;
+    }
+
+    public function setStart($val) {
+        $this->range = $this->range & 0xffffffff00000000 | ($val & 0xffffffff);
+    }
+
+    public function setLength($val) {
+        $this->range = $this->range & 0xffffffff | ($val << 32);
     }
 }

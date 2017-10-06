@@ -89,7 +89,7 @@ class TextDocument
 
             foreach($symbols as $sym) {
                 $cl = new CodeLens;
-                $cl->range = $file->getRange($sym->start, $sym->length);
+                $cl->range = $file->getRange($sym->getStart(), $sym->getLength());
                 $cmd = new Command;
                 $cmd->title = count($sym->backRefs ?? []).' references';
                 $cmd->command = '';
@@ -147,7 +147,7 @@ class TextDocument
                     $kind,
                     new \LanguageServer\Protocol\Location(
                         $textDocument->uri,
-                        $file->getRange($symbol->start, $symbol->length)
+                        $file->getRange($symbol->getStart(), $symbol->getLength())
                     ),
                     $symbol->parent ? $symbol->parent->fqn() : ''
                 );
@@ -211,7 +211,7 @@ class TextDocument
                 foreach($refs as $ref) {
                     $diags[$ref->file->name][] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
-                        $ref->file->getRange($ref->start, $ref->length),
+                        $ref->file->getRange($ref->getStart(), $ref->getLength()),
                         0,
                         0,
                         null
@@ -286,7 +286,7 @@ class TextDocument
             foreach($backRefs as $ref) {
                 $locations[] = new Location(
                     $ref->file->name,
-                    $ref->file->getRange($ref->start, $ref->length)
+                    $ref->file->getRange($ref->getStart(), $ref->getLength())
                 );
             }
             return $locations;
@@ -373,9 +373,10 @@ class TextDocument
             $ref = $file->getReferenceAtPosition($position->line, $position->character);
             if (!$ref) return [];
             if ($ref->isUnresolved()) return [];
+            $symFile = $ref->target->getFile();
             return new Location(
-                $ref->target->getFile()->name,
-                $ref->file->getRange($ref->target->start, $ref->target->length)
+                $symFile->name,
+                $symFile->getRange($ref->target->getStart(), $ref->target->getLength())
             );
         });
         /* return coroutine(function () use ($textDocument, $position) {
@@ -432,7 +433,7 @@ class TextDocument
                     'php',
                     $ref->getDescription()
                 ),
-                $ref->file->getRange($ref->start, $ref->length)
+                $ref->file->getRange($ref->getStart(), $ref->getLength())
             );
         });
     }
