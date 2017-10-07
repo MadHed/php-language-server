@@ -153,6 +153,7 @@ class Indexer
                     yield timeout();
                     $db = \unserialize(file_get_contents($cache));
                     \gc_collect_cycles();
+                    \gc_mem_caches();
                     if ($db) {
                         $this->db->from($db);
                     }
@@ -240,6 +241,7 @@ class Indexer
             $cache = $this->rootPath.'/phpls.cache';
             file_put_contents($cache, \serialize($this->db));
             \gc_collect_cycles();
+            \gc_mem_caches();
         });
     }
 }

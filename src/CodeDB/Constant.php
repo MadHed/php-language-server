@@ -9,13 +9,13 @@ class Constant extends Symbol {
 
     public function fqn(): string {
         if ($this->parent instanceof Namespace_) {
-            return $this->parent->fqn().'\\'.$this->name;
+            return $this->parent->fqn().'\\#'.$this->name;
         }
-        else if ($this->parent instanceof Class_) {
-            return $this->parent->fqn().'::'.$this->name;
+        else if ($this->parent instanceof ClassLike) {
+            return $this->parent->fqn().'::#'.$this->name;
         }
         else {
-            return $this->parent->fqn().'@'.$this->name;
+            return $this->parent->fqn().'#'.$this->name;
         }
     }
 

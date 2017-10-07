@@ -295,9 +295,9 @@ class Collector {
         }
         else if ($node instanceof MethodDeclaration) {
             $name = $node->name->getText($this->src);
-            if ($name && $this->currentClass) {
+            if ($name && ($this->currentClass || $this->currentInterface)) {
                 $this->currentFunction = new Function_($name, $this->getStart($node->name), $this->getLength($node->name));
-                $this->currentClass->addChild($this->currentFunction);
+                ($this->currentClass ?? $this->currentInterface)->addChild($this->currentFunction);
                 $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
             }
         }
@@ -310,11 +310,9 @@ class Collector {
                 foreach($elements as $el) {
                     if (!$el instanceof ConstElement) continue;
                     $name = $this->getText($el->name);
-                    if ($name && $this->currentClass) {
-                        $co = new Constant($name, $this->getStart($el->name), $this->getLength($el->name));
-                        ($this->currentClass ?? $this->currentFunction ?? $this->getNamespace())->addChild($co);
-                        $this->repo->fqnMap[$co->fqn()] = $co;
-                    }
+                    $co = new Constant($name, $this->getStart($el->name), $this->getLength($el->name));
+                    ($this->currentClass ?? $this->currentInterface ?? $this->currentFunction ?? $this->getNamespace())->addChild($co);
+                    $this->repo->fqnMap[$co->fqn()] = $co;
                 }
             }
         }
@@ -378,6 +376,13 @@ class Collector {
                 if (!$this->currentClass) return;
                 $fqn = $this->currentClass->fqn();
             }
+            else if ($name === 'parent') {
+                if (!$this->currentClass || !$this->currentClass->extends) return;
+                $fqn = $this->currentClass->extends->target;
+            }
+            else if ($name === 'class') {
+                return;
+            }
             else {
                 $fqn = $this->expandName($name);
             }
@@ -421,7 +426,7 @@ class Collector {
                 }
                 else {
                     if ($memberName === 'class') return;
-                    $refName = strtolower($className).'::'.$memberName;
+                    $refName = strtolower($className).'::#'.$memberName;
                 }
 
                 $ref = new Reference(
@@ -451,7 +456,20 @@ class Collector {
                     || $node->rightOperand instanceof Token
                 )
             ) {
-                $className = $this->expandName($this->getText($node->rightOperand));
+                $className = $this->getText($node->rightOperand);
+                if ($className === 'self' || $className === 'static') {
+                    if (!$this->currentClass) return;
+                    $className = $this->currentClass->fqn();
+                }
+                else if ($className === 'parent') {
+                    if (!$this->currentClass) return;
+                    if (!$this->currentClass->extends) return;
+                    $className = $this->currentClass->extends->target;
+                }
+                else {
+                    $className = $this->expandName($className);
+                }
+
                 $ref = new Reference(
                     $this->file,
                     $this->getStart($node->rightOperand),

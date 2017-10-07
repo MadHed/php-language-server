@@ -2,7 +2,7 @@
 
 namespace LanguageServer\CodeDB;
 
-class Class_ extends Symbol {
+class Class_ extends ClassLike {
     public $implements;
     public $extends;
 
@@ -61,7 +61,10 @@ class Class_ extends Symbol {
             }
         }
         if ($this->extends !== null && $this->extends->target instanceof Class_) {
-            return $this->extends->target->findField($name);
+            $sym = $this->extends->target->findField($name);
+            if ($sym !== null) {
+                return $sym;
+            }
         }
         return null;
     }
@@ -69,19 +72,32 @@ class Class_ extends Symbol {
     public function findMethod($name, $call = null) {
         foreach($this->children ?? [] as $member) {
             if ($member instanceof Function_) {
-                if ($member->name === $name) {
+                if (strcasecmp($member->name, $name) === 0) {
                     return $member;
                 }
-                else if ($call === null && strtolower($member->name) === '__call') {
+                else if ($call === null && strcasecmp($member->name, '__call') === 0) {
                     $call = $member;
                 }
-                else if ($call === null && strtolower($member->name) === '__callstatic') {
+                else if ($call === null && strcasecmp($member->name, '__callstatic') === 0) {
                     $call = $member;
                 }
             }
         }
         if ($this->extends !== null && $this->extends->target instanceof Class_) {
-            return $this->extends->target->findMethod($name, $call);
+            $sym = $this->extends->target->findMethod($name, $call);
+            if ($sym !== null) {
+                return $sym;
+            }
+        }
+        if ($this->implements !== null) {
+            foreach($this->implements as $impl) {
+                if ($impl->target instanceof Interface_) {
+                    $sym = $impl->target->findMethod($name, $call);
+                    if ($sym !== null) {
+                        return $sym;
+                    }
+                }
+            }
         }
         return $call;
     }
@@ -93,7 +109,20 @@ class Class_ extends Symbol {
             }
         }
         if ($this->extends !== null && $this->extends->target instanceof Class_) {
-            return $this->extends->target->findConstant($name);
+            $sym = $this->extends->target->findConstant($name);
+            if ($sym !== null) {
+                return $sym;
+            }
+        }
+        if ($this->implements !== null) {
+            foreach($this->implements as $impl) {
+                if ($impl->target instanceof Interface_) {
+                    $sym = $impl->target->findConstant($name);
+                    if ($sym !== null) {
+                        return $sym;
+                    }
+                }
+            }
         }
         return null;
     }

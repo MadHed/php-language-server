@@ -64,7 +64,8 @@ $parser = null;
 $ast = null;
 $collector = null;
 
-$repo->resolveReferences();
-
 print_r(array_keys($repo->fqnMap));
+
+print_r(array_keys($repo->references));
+$repo->resolveReferences();
 print_r(array_keys($repo->references));

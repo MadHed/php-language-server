@@ -5,7 +5,11 @@ namespace A\B\C;
 use D\E\{F as G};
 use D\E\F;
 
-class Bar {
+interface I {
+    const CO = 0;
+    function abc();
+}
+class Bar implements I {
     static public function test() {
 
     }
@@ -28,5 +32,7 @@ class Foo extends Bar {
         Foo::BLA;
         self::test();
         self::dsgjkh();
+        echo self::CO;
+        self::abc();
     }
 }
