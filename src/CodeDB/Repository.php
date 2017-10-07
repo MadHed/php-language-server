@@ -355,8 +355,60 @@ class Repository {
                 }
                 unset($this->references[$fqn]);
             }
+            else if (strpos($fqn, '::') !== false) {
+                // is class member
+                $parts = explode('::', $fqn, 2);
+                $clsName = $parts[0];
+                $symName = $parts[1];
+                if (isset($this->fqnMap[$clsName])) {
+                    $cls = $this->fqnMap[$clsName];
+                    if (!$cls instanceof Class_) {
+                        continue;
+                    }
+                }
+                else {
+                    continue;
+                }
+
+                if (substr($symName, 0, 1) === '$') {
+                    // field
+                    $symName = substr($symName, 1);
+                    $found = $cls->findField($symName);
+                }
+                else if (substr($symName, -2) === '()') {
+                    // method
+                    $symName = substr($symName, 0, -2);
+                    $found = $cls->findMethod($symName);
+                }
+                else {
+                    // const
+                    $found = $cls->findConstant($symName);
+                }
+
+                if ($found) {
+                    foreach($refs as $ref) {
+                        $ref->target = $found;
+                        $ref->target->addBackRef($ref);
+                    }
+                    unset($this->references[$fqn]);
+                }
+            }
+            else if (strpos($fqn, '()') !== false) {
+                // function
+                $pos = strrpos($fqn, '\\');
+                if ($pos > 0) {
+                    $newfqn = substr($fqn, $pos);
+                    if (isset($this->fqnMap[$newfqn])) {
+                        $target = $this->fqnMap[$newfqn];
+                        foreach($refs as $ref) {
+                            $ref->target = $target;
+                            $ref->target->addBackRef($ref);
+                        }
+                        unset($this->references[$fqn]);
+                    }
+                }
+            }
         }
-        echo "resolveReferences() ", (int)((microtime(true)-$start)*1000), "ms\n";
     }
 
     public function addUnresolvedReference(Reference $ref) {
@@ -388,7 +440,6 @@ class Repository {
         $file = $this->files[$uri];
         $file->onDelete($this);
         unset($this->files[$uri]);
-        echo "removeFile() ", (int)((microtime(true)-$start)*1000), "ms\n";
     }
 
     public function getUnresolvedReferenceCount() {

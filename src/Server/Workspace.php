@@ -101,7 +101,7 @@ class Workspace
                     $kind,
                     new \LanguageServer\Protocol\Location(
                         $file->name,
-                        $file->getRange($symbol->start, $symbol->length)
+                        $file->getRange($symbol->getStart(), $symbol->getLength())
                     ),
                     $symbol->parent ? $symbol->parent->fqn() : ''
                 );

@@ -72,9 +72,6 @@ class Collector {
             return $name;
         }
         else {
-            if ($isfunc) {
-                return '\\'.$name;
-            }
             $parts = explode('\\', $name, 2);
             if (isset($this->aliases[$parts[0]])) {
                 if (count($parts) > 1) {
@@ -214,7 +211,14 @@ class Collector {
                 foreach($node->groupClauses->children as $group) {
                     if ($group && $group instanceof Node && $group->namespaceName !== null) {
                         $ext = $this->getText($group->namespaceName);
-                        $this->addAlias($base.$ext);
+
+                        if ($group->namespaceAliasingClause !== null && $group->namespaceAliasingClause->name !== null) {
+                            $alias = $this->getText($group->namespaceAliasingClause->name);
+                            $this->addAlias($base.$ext, $alias);
+                        }
+                        else {
+                            $this->addAlias($base.$ext);
+                        }
                     }
                 }
             }

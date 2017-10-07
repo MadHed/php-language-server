@@ -125,8 +125,6 @@ class Indexer
                 $source[] = $uri;
             }
 
-            fwrite(STDERR, print_r($uris, true));
-
             // Index source
             // Definitions and static references
             $this->client->window->logMessage(MessageType::INFO, 'Indexing project for definitions and static references');

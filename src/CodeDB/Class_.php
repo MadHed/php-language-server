@@ -54,4 +54,48 @@ class Class_ extends Symbol {
         return null;
     }
 
+    public function findField($name, $get = null) {
+        foreach($this->children ?? [] as $member) {
+            if ($member instanceof Variable && $member->name === $name) {
+                return $member;
+            }
+        }
+        if ($this->extends !== null && $this->extends->target instanceof Class_) {
+            return $this->extends->target->findField($name);
+        }
+        return null;
+    }
+
+    public function findMethod($name, $call = null) {
+        foreach($this->children ?? [] as $member) {
+            if ($member instanceof Function_) {
+                if ($member->name === $name) {
+                    return $member;
+                }
+                else if ($call === null && strtolower($member->name) === '__call') {
+                    $call = $member;
+                }
+                else if ($call === null && strtolower($member->name) === '__callstatic') {
+                    $call = $member;
+                }
+            }
+        }
+        if ($this->extends !== null && $this->extends->target instanceof Class_) {
+            return $this->extends->target->findMethod($name, $call);
+        }
+        return $call;
+    }
+
+    public function findConstant($name) {
+        foreach($this->children ?? [] as $member) {
+            if ($member instanceof Constant && $member->name === $name) {
+                return $member;
+            }
+        }
+        if ($this->extends !== null && $this->extends->target instanceof Class_) {
+            return $this->extends->target->findConstant($name);
+        }
+        return null;
+    }
+
 }

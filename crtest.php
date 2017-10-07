@@ -7,10 +7,6 @@ use function LanguageServer\pathToUri;
 use function LanguageServer\uriToPath;
 
 require_once 'vendor/autoload.php';
-require_once 'sertest.php';
-
-use function LanguageServer\CodeDB\serialize as serialize;
-use function LanguageServer\CodeDB\unserialize as unserialize;
 
 function bytes($v) {
     if ($v < 1024) {
@@ -42,45 +38,11 @@ function seconds($v) {
     }
 }
 
-$start = \microtime(true);
-
-if (file_exists('phpls.cache')) {
-    $usstart = microtime(true);
-    $repo = \unserialize(file_get_contents('phpls.cache'));
-    $usend = microtime(true);
-    echo "Unserialized in ".seconds($usend-$usstart)."\n";
-}
-
-if (empty($repo)) {
-    $repo = new Repository();
-}
-
+$repo = new Repository();
 $parser = new Parser();
+$files = ['test1.php', 'test2.php'];
 
-$files = array();
-
-$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('./vendor/jetbrains/phpstorm-stubs'));
-foreach ($rii as $file) {
-    $filename = $file->getRealPath();
-    if ($file->isFile() && $file->isReadable() && strtolower($file->getExtension()) === 'php'){
-        $files[] = $filename;
-    }
-}
-
-$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('.'));
-//$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('/mnt/e/Projekte/magento'));
-//$rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator('src'));
-foreach ($rii as $file) {
-    $filename = $file->getRealPath();
-    if ($file->isFile() && $file->isReadable() && strtolower($file->getExtension()) === 'php'){
-        $files[] = $filename;
-    }
-}
-
-$cached = 0;
 foreach($files as $i => $filename) {
-    echo "\r".(int)($i*100/count($files))."%";
-    flush();
     $uri = pathToUri($filename);
     $src = file_get_contents($filename);
     if (isset($repo->files[$uri]) && hash('sha256', $src) === $repo->files[$uri]->hash()) {
@@ -88,7 +50,7 @@ foreach($files as $i => $filename) {
         continue;
     }
 
-    echo " Parsing $filename\n";
+    echo "Parsing $filename\n";
 
     $parsestart = microtime(true);
     $ast = $parser->parseSourceFile($src, $uri);
@@ -102,43 +64,7 @@ $parser = null;
 $ast = null;
 $collector = null;
 
-$refstart = microtime(true);
-$resolved = $unresolved = 0;
-foreach($repo->references as $ref) {
-    if (\is_string($ref->target) || \is_string($ref->file)) {
-        if (\is_string($ref->target) && isset($repo->fqnMap[$ref->target])) {
-            $ref->target = $repo->fqnMap[$ref->target];
-        }
-        if (\is_string($ref->file) && isset($repo->files[$ref->file])) {
-            $ref->file = $repo->files[$ref->file];
-        }
-        $unresolved++;
-    }
-    else {
-        $resolved++;
-    }
-}
-echo "\n";
-$refend = microtime(true);
-echo 'References resolved in '.seconds($refend-$refstart)."\n";
+$repo->resolveReferences();
 
-$end = \microtime(true);
-
-$searchstart = microtime(true);
-
-$searchend = microtime(true);
-echo "Search finished in ".seconds($searchend-$searchstart)."\n";
-
-echo count($repo->references)." references. Resolved: $resolved, Unresolved: $unresolved\n";
-echo \count($files)." files in ".seconds($end-$start)."; $cached from cache; ".bytes(\memory_get_usage(true))." allocated\n";
-
-$sestart = microtime(true);
-file_put_contents('phpls.cache', \serialize($repo));
-$seend = microtime(true);
-
-echo "Serialized in ".seconds($seend-$sestart)."\n";
-echo "Memory used after serializing: ".bytes(memory_get_usage(true))."\n";
-
-global $totals;
-var_dump($totals);
-
+print_r(array_keys($repo->fqnMap));
+print_r(array_keys($repo->references));

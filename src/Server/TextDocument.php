@@ -185,13 +185,18 @@ class TextDocument
     public function didChange(VersionedTextDocumentIdentifier $textDocument, array $contentChanges)
     {
         return coroutine(function () use($textDocument, $contentChanges) {
+            $start = microtime(true);
             yield null;
             $this->db->removeFile($textDocument->uri);
+            echo "removeFile: ".((int)((microtime(true)-$start)*1000))."ms\n";
             $parser = new \Microsoft\PhpParser\Parser();
             $ast = $parser->parseSourceFile($contentChanges[0]->text, $textDocument->uri);
+            echo "parse: ".((int)((microtime(true)-$start)*1000))."ms\n";
             $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $ast);
             $collector->iterate($ast);
+            echo "collect: ".((int)((microtime(true)-$start)*1000))."ms\n";
             $this->db->resolveReferences();
+            echo "resolveReferences: ".((int)((microtime(true)-$start)*1000))."ms\n";
 
             $diags = [];
             foreach ($this->db->files as $file) {
@@ -223,6 +228,7 @@ class TextDocument
                     $this->client->textDocument->publishDiagnostics($uri, $d);
                 }
             }
+            echo "didChange: ".((int)((microtime(true)-$start)*1000))."ms\n";
         });
         /* $document = $this->documentLoader->get($textDocument->uri);
         $document->updateContent($contentChanges[0]->text);
