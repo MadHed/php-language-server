@@ -7,6 +7,7 @@ use function LanguageServer\pathToUri;
 use function LanguageServer\uriToPath;
 
 require_once 'vendor/autoload.php';
+require_once 'sertest.php';
 
 function bytes($v) {
     if ($v < 1024) {
@@ -37,6 +38,48 @@ function seconds($v) {
         return (int)($v/60).'min';
     }
 }
+
+$refs = 0;
+$syms = 0;
+function free($sym) {
+    global $refs, $syms;
+    $syms++;
+    if (isset($sym->references)) $refs += count($sym->references);
+    if (isset($sym->extends)) $refs += is_array($sym->extends) ? count($sym->extends) : 1;
+    if (isset($sym->implements)) $refs += count($sym->implements);
+    if (isset($sym->backRefs)) $refs += count($sym->backRefs);
+
+    if (isset($sym->references)) $sym->references = null;
+    if (isset($sym->extends)) $sym->extends = null;
+    if (isset($sym->implements)) $sym->implements = null;
+    if (isset($sym->backRefs)) $sym->backRefs = null;
+    foreach($sym->children ?? [] as $ch) {
+        free($ch);
+    }
+}
+
+$repo = \LanguageServer\CodeDB\unserialize(file_get_contents('phpls.cache'));
+echo bytes(memory_get_usage(true)), "\n";
+
+foreach($repo->files as $f) {
+    free($f);
+}
+$f = null;
+
+$repo->references = null;
+
+\gc_collect_cycles();\gc_collect_cycles();\gc_collect_cycles();
+\gc_collect_cycles();\gc_collect_cycles();\gc_collect_cycles();
+\gc_collect_cycles();\gc_collect_cycles();\gc_collect_cycles();
+\gc_mem_caches();\gc_mem_caches();\gc_mem_caches();
+\gc_mem_caches();\gc_mem_caches();\gc_mem_caches();
+\gc_mem_caches();\gc_mem_caches();\gc_mem_caches();
+echo bytes(memory_get_usage(true)), "\n";
+echo "Symbols: $syms\n";
+echo "References: $refs\n";
+
+
+die;
 
 $repo = new Repository();
 $parser = new Parser();

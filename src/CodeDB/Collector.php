@@ -34,7 +34,9 @@ use Microsoft\PhpParser\Node\Expression\{
     ObjectCreationExpression,
     CallExpression,
     ScopedPropertyAccessExpression,
-    BinaryExpression
+    BinaryExpression,
+    MemberAccessExpression,
+    Variable as VariableExpression
 };
 
 class Collector {
@@ -316,7 +318,7 @@ class Collector {
                 }
             }
         }
-        else if ($node instanceof \Microsoft\PhpParser\Node\Expression\Variable) {
+        else if ($node instanceof VariableExpression) {
             /*$name = $node->getName();
             if ($name) {
                 if ($name === 'this') {
@@ -493,6 +495,22 @@ class Collector {
                 );
                 $this->repo->addUnresolvedReference($ref);
                 $this->file->references[] = $ref;
+            }
+            else if ($node->callableExpression instanceof MemberAccessExpression) {
+                if (
+                    $node->callableExpression->dereferencableExpression instanceof VariableExpression
+                    && $node->callableExpression->dereferencableExpression->getName() === 'this'
+                    && $this->currentClass
+                ) {
+                    $ref = new Reference(
+                        $this->file,
+                        $this->getStart($node->callableExpression->memberName),
+                        $this->getLength($node->callableExpression->memberName),
+                        $this->currentClass->fqn().'::'.strtolower($this->getText($node->callableExpression->memberName)).'()'
+                    );
+                    $this->repo->addUnresolvedReference($ref);
+                    $this->file->references[] = $ref;
+                }
             }
         }
     }

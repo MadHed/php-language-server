@@ -13,7 +13,6 @@ abstract class Symbol extends FileRegion {
     public function __construct(string $name, $start, $length) {
         parent::__construct($start, $length);
         $this->name = $name;
-        $this->range = 0;
     }
 
     public function addChild(Symbol $child) {

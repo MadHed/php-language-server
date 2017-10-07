@@ -19,6 +19,9 @@ use function Sabre\Event\coroutine;
 
 require_once dirname(__FILE__).'/../sertest.php';
 
+use function LanguageServer\CodeDB\serialize;
+use function LanguageServer\CodeDB\unserialize;
+
 class Indexer
 {
     /**
@@ -151,7 +154,7 @@ class Indexer
                 try {
                     $this->client->window->logMessage(MessageType::LOG, "Loading symbol cache");
                     yield timeout();
-                    $db = \unserialize(file_get_contents($cache));
+                    $db = unserialize(file_get_contents($cache));
                     \gc_collect_cycles();
                     \gc_mem_caches();
                     if ($db) {
@@ -239,7 +242,7 @@ class Indexer
             }
 
             $cache = $this->rootPath.'/phpls.cache';
-            file_put_contents($cache, \serialize($this->db));
+            file_put_contents($cache, serialize($this->db));
             \gc_collect_cycles();
             \gc_mem_caches();
         });

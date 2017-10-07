@@ -9,7 +9,6 @@ class Diagnostic {
     public $message;
     public $start;
     public $length;
-    public $references;
 
     public function __construct($kind, $message, $start, $length)
     {
@@ -29,6 +28,8 @@ class File extends Symbol {
     public $parseTime = 0;
     public $lineOffsets;
     public $diagnostics;
+    public $references;
+    public $lineOffsets;
 
     public function __construct(string $name, string $content) {
         parent::__construct($name, 0, strlen($content));
