@@ -3,8 +3,8 @@
 namespace LanguageServer\CodeDB;
 
 class FileRegion {
-    private $start;
-    private $length;
+    public $start;
+    public $length;
 
     public function __construct($start, $length) {
         $this->start = $start;

@@ -55,15 +55,23 @@ function serialize($value, $state = null) {
             $nref = $ref;
             do {
                 $refs[] = $ref;
-            } while($nref = $ref->getParentClass() && $nref != $ref && $ref = $nref);
+            } while(($nref = $ref->getParentClass()) && ($nref != $ref) && ($ref = $nref));
 
             $str = "O:".\strlen($cls).":\"".$cls."\":";
 
             $numProps = 0;
+            $visitedProps = [];
             foreach($refs as $ref) {
                 $props = $ref->getProperties();
                 foreach($props as $prop) {
-                    if (!$prop->isStatic()) $numProps++;
+                    if ($prop->isStatic()) continue;
+                    if ($prop->isPrivate()) {
+                        $numProps++;
+                    }
+                    else if (!isset($visitedProps[$prop->getName()])) {
+                        $visitedProps[$prop->getName()] = 1;
+                        $numProps++;
+                    }
                 }
             }
 
@@ -313,7 +321,7 @@ function binserialize($value, $state = null) {
             $nref = $ref;
             do {
                 $refs[] = $ref;
-            } while($nref = $ref->getParentClass() && $nref != $ref && $ref = $nref);
+            } while(($nref = $ref->getParentClass()) && ($nref != $ref) && ($ref = $nref));
 
             $str = 'o'.pack('V', strlen($cls)).$cls;
 

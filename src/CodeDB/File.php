@@ -24,12 +24,11 @@ class Diagnostic {
 }
 
 class File extends Symbol {
-    private $hash;
+    public $hash;
     public $parseTime = 0;
     public $lineOffsets;
     public $diagnostics;
     public $references;
-    public $lineOffsets;
 
     public function __construct(string $name, string $content) {
         parent::__construct($name, 0, strlen($content));

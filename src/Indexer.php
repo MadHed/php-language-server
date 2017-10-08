@@ -154,7 +154,7 @@ class Indexer
                 try {
                     $this->client->window->logMessage(MessageType::LOG, "Loading symbol cache");
                     yield timeout();
-                    $db = unserialize(file_get_contents($cache));
+                    $db = \unserialize(file_get_contents($cache));
                     \gc_collect_cycles();
                     \gc_mem_caches();
                     if ($db) {
@@ -162,7 +162,9 @@ class Indexer
                     }
                 }
                 catch (\Exception $e) {
+                    echo $e->getMessage();
                     $this->client->window->logMessage(MessageType::LOG, "Error loading cache: {$e->getMessage()}");
+                    die();
                 }
             }
 
@@ -242,7 +244,7 @@ class Indexer
             }
 
             $cache = $this->rootPath.'/phpls.cache';
-            file_put_contents($cache, serialize($this->db));
+            file_put_contents($cache, \serialize($this->db));
             \gc_collect_cycles();
             \gc_mem_caches();
         });
