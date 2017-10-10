@@ -195,13 +195,13 @@ class Indexer
             foreach($this->db->files as $file) {
                 $numsyms++;
                 $numrefs += count($file->references ?? []);
-                foreach($file->children ?? [] as $namespace) {
+                foreach($file->children as $namespace) {
                     $numsyms++;
-                    foreach($namespace->children ?? [] as $sym1) {
+                    foreach($namespace->children as $sym1) {
                         $numsyms++;
-                        foreach($sym1->children ?? [] as $sym2) {
+                        foreach($sym1->children as $sym2) {
                             $numsyms++;
-                            foreach($sym2->children ?? [] as $sym3) {
+                            foreach($sym2->children as $sym3) {
                                 $numsyms++;
                             }
                         }

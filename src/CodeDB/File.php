@@ -34,13 +34,14 @@ class File extends Symbol {
         parent::__construct($name, 0, strlen($content));
         $this->hash = \hash('SHA256', $content);
 
-        $this->lineOffsets[] = 0;
+        $lineOffsets[] = 0;
         $offset = 1;
         $len = strlen($content);
         while ($offset < $len && ($offset = \strpos($content, "\n", $offset)) !== false) {
-            $this->lineOffsets[] = $offset + 1;
+            $lineOffsets[] = $offset + 1;
             $offset++;
         }
+        $this->lineOffsets = \SplFixedArray::fromArray($lineOffsets);
     }
 
     public function getRange($start, $length) {
@@ -87,7 +88,7 @@ class File extends Symbol {
             }
         }
 
-        foreach($this->children ?? [] as $child) {
+        foreach($this->children as $child) {
             $ref = $child->getReferenceAtOffset($offset);
             if ($ref) return $ref;
         }
@@ -98,22 +99,14 @@ class File extends Symbol {
         $offset = $this->positionToOffset($line, $character);
 
         $symbols = [];
-        if (is_array($this->children)) {
-            foreach($this->children as $ns) {
-                $symbols[] = $ns;
-                if (is_array($ns->children)) {
-                    foreach($ns->children as $sym) {
-                        $symbols[] = $sym;
-                        if (is_array($sym->children)) {
-                            foreach($sym->children as $syms) {
-                                $symbols[] = $syms;
-                                if (is_array($syms->children)) {
-                                    foreach($syms->children as $symss) {
-                                        $symbols[] = $symss;
-                                    }
-                                }
-                            }
-                        }
+        foreach($this->children as $ns) {
+            $symbols[] = $ns;
+            foreach($ns->children as $sym) {
+                $symbols[] = $sym;
+                foreach($sym->children as $syms) {
+                    $symbols[] = $syms;
+                    foreach($syms->children as $symss) {
+                        $symbols[] = $symss;
                     }
                 }
             }
