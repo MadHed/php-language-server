@@ -13,21 +13,24 @@ abstract class Symbol extends FileRegion {
     public function __construct(string $name, $start, $length) {
         parent::__construct($start, $length);
         $this->name = $name;
-        $this->backRefs = new RealArray(0);
-        $this->children = new RealArray(0);
     }
 
     public function addChild(Symbol $child) {
-        $this->children->append($child);
+        $this->children[$child->name] = $child;
         $child->parent = $this;
     }
 
     public function addBackRef(Reference $ref) {
-        $this->backRefs->append($ref);
+        $this->backRefs[] = $ref;
     }
 
     public function removeBackRef(Reference $ref) {
-        $this->backRefs->erase($ref);
+        foreach($this->backRefs ?? [] as $i => $br) {
+            if ($br === $ref) {
+                unset($this->backRefs[$i]);
+                return;
+            }
+        }
     }
 
     public function getFile() {
@@ -50,16 +53,16 @@ abstract class Symbol extends FileRegion {
     }
 
     public function onDelete(Repository $repo) {
-        foreach($this->backRefs as $br) {
+        foreach($this->backRefs ?? [] as $br) {
             $br->onSymbolDelete($repo);
         }
-        foreach($this->children as $child) {
+        foreach($this->children ?? [] as $child) {
             $child->onDelete($repo);
         }
     }
 
     public function getReferenceAtOffset($offset) {
-        foreach($this->children as $child) {
+        foreach($this->children ?? [] as $child) {
             $ref = $child->getReferenceAtOffset($offset);
             if ($ref) return $ref;
         }

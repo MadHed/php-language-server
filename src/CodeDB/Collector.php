@@ -52,7 +52,6 @@ class Collector {
 
     private $scope = [];
     private $aliases = [];
-    private $namespaces = [];
 
     public function __construct($repo, $filename, $src) {
         $this->repo = $repo;
@@ -168,12 +167,11 @@ class Collector {
 
     private function getNamespace() {
         if ($this->namespace === null) {
-            if (!isset($this->namespaces[''])) {
+            if (!isset($this->file->children[''])) {
                 $ns = new Namespace_('', 0, 0);
                 $this->file->addChild($ns);
-                $this->namespaces[''] = $ns;
             }
-            $this->namespace = $this->namespaces[''];
+            $this->namespace = $this->file->children[''];
         }
         return $this->namespace;
     }
@@ -191,8 +189,8 @@ class Collector {
 
         if ($node instanceof NamespaceDefinition) {
             $name = $this->getText($node->name);
-            if (isset($this->namespaces[$name])) {
-                $this->namespace = $this->namespaces[$name];
+            if (isset($this->file->children[$name])) {
+                $this->namespace = $this->file->children[$name];
             }
             else {
                 $this->namespace = new Namespace_(
@@ -201,7 +199,6 @@ class Collector {
                     $this->getLength($node->name ?? $node)
                 );
                 $this->file->addChild($this->namespace);
-                $this->namespaces[$name] = $this->namespace;
             }
         }
         else if ($node instanceof NamespaceUseClause) {
