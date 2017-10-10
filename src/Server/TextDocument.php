@@ -91,7 +91,7 @@ class TextDocument
                 $cl = new CodeLens;
                 $cl->range = $file->getRange($sym->getStart(), $sym->getLength());
                 $cmd = new Command;
-                $cmd->title = count($sym->backRefs ?? []).' references';
+                $cmd->title = count($sym->backRefs).' references';
                 $cmd->command = '';
                 $cl->command = $cmd;
                 $codeLens[] = $cl;
@@ -287,9 +287,8 @@ class TextDocument
                 $sym = $ref->target;
             }
             if (!$sym) return [];
-            $backRefs = $sym->backRefs ?? [];
             $locations = [];
-            foreach($backRefs as $ref) {
+            foreach($sym->backRefs as $ref) {
                 $locations[] = new Location(
                     $ref->file->name,
                     $ref->file->getRange($ref->getStart(), $ref->getLength())

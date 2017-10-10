@@ -199,11 +199,9 @@ class ChildrenIterator extends IteratorBase {
 
     public function gen() {
         foreach($this->base as $element) {
-            if (is_array($element->children)) {
-                foreach($element->children as $child) {
-                    if ($child instanceof $this->type) {
-                        yield $child;
-                    }
+            foreach($element->children as $child) {
+                if ($child instanceof $this->type) {
+                    yield $child;
                 }
             }
         }

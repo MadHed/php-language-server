@@ -34,7 +34,7 @@ class Interface_ extends ClassLike {
             }
         }
 
-        foreach($this->children ?? [] as $child) {
+        foreach($this->children as $child) {
             $ref = $child->getReferenceAtOffset($offset);
             if ($ref) return $ref;
         }
@@ -43,7 +43,7 @@ class Interface_ extends ClassLike {
     }
 
     public function findMethod($name, $call = null) {
-        foreach($this->children ?? [] as $member) {
+        foreach($this->children as $member) {
             if ($member instanceof Function_) {
                 if (strcasecmp($member->name, $name) === 0) {
                     return $member;
@@ -70,7 +70,7 @@ class Interface_ extends ClassLike {
     }
 
     public function findConstant($name) {
-        foreach($this->children ?? [] as $member) {
+        foreach($this->children as $member) {
             if ($member instanceof Constant) {
                 if ($member->name === $name) {
                     return $member;
