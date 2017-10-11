@@ -17,11 +17,6 @@ use Composer\Semver\VersionParser;
 use Sabre\Event\Promise;
 use function Sabre\Event\coroutine;
 
-require_once dirname(__FILE__).'/../sertest.php';
-
-use function LanguageServer\CodeDB\serialize;
-use function LanguageServer\CodeDB\unserialize;
-
 class Indexer
 {
     /**
@@ -151,7 +146,7 @@ class Indexer
         return coroutine(function () use ($files) {
             $cache = $this->rootPath.'/phpls.cache';
             if (file_exists($cache) && is_readable($cache)) {
-                try {
+                /*try {
                     $this->client->window->logMessage(MessageType::LOG, "Loading symbol cache");
                     yield timeout();
                     $db = \unserialize(file_get_contents($cache));
@@ -165,7 +160,7 @@ class Indexer
                     echo $e->getMessage();
                     $this->client->window->logMessage(MessageType::LOG, "Error loading cache: {$e->getMessage()}");
                     die();
-                }
+                }*/
             }
 
             foreach ($files as $i => $uri) {
@@ -244,7 +239,7 @@ class Indexer
             }
 
             $cache = $this->rootPath.'/phpls.cache';
-            file_put_contents($cache, \serialize($this->db));
+            //file_put_contents($cache, \serialize($this->db));
             \gc_collect_cycles();
             \gc_mem_caches();
         });

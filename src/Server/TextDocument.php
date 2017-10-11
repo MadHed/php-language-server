@@ -429,17 +429,27 @@ class TextDocument
             yield null;
             if (!isset($this->db->files[$textDocument->uri])) return null;
             $file = $this->db->files[$textDocument->uri];
-            $ref = $file->getReferenceAtPosition($position->line, $position->character);
-            if (!$ref) return null;
-            if ($ref->isUnresolved()) return null;
+            if ($ref = $file->getReferenceAtPosition($position->line, $position->character)) {
+                if ($ref->isUnresolved()) return null;
 
-            return new Hover(
-                new MarkedString(
-                    'php',
-                    $ref->getDescription()
-                ),
-                $ref->file->getRange($ref->getStart(), $ref->getLength())
-            );
+                return new Hover(
+                    new MarkedString(
+                        'php',
+                        $ref->getDescription()
+                    ),
+                    $ref->file->getRange($ref->getStart(), $ref->getLength())
+                );
+            }
+            else if ($sym = $file->getSymbolAtPosition($position->line, $position->character)) {
+                return new Hover(
+                    new MarkedString(
+                        'php',
+                        $sym->getDescription()
+                    ),
+                    $file->getRange($sym->getStart(), $sym->getLength())
+                );
+            }
+            return null;
         });
     }
 

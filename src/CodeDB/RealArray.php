@@ -3,7 +3,7 @@
 namespace LanguageServer\CodeDB;
 
 class RealArray extends \SplFixedArray {
-    public function __construct($size) {
+    public function __construct($size = 0) {
         parent::__construct($size);
     }
 

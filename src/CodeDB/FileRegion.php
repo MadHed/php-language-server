@@ -3,27 +3,32 @@
 namespace LanguageServer\CodeDB;
 
 class FileRegion {
-    public $start;
-    public $length;
+    private $range = 0; // 22:10 bitfield
+
+    const START_BITS = 22;
+    const LENGTH_BITS = 10;
+    const START_MASK = 0b1111111111111111111111;
+    const LENGTH_MASK = 0b1111111111;
 
     public function __construct($start, $length) {
-        $this->start = $start;
-        $this->length = $length;
+        $this->range = 0;
+        $this->setStart($start);
+        $this->setLength($length);
     }
 
     public function getStart() {
-        return $this->start;
+        return $this->range >> self::LENGTH_BITS;
     }
 
     public function getLength() {
-        return $this->length;
+        return $this->range & self::LENGTH_MASK;
     }
 
     public function setStart($val) {
-        $this->start = $val;
+        $this->range = ($this->range & self::LENGTH_MASK) | (($val & self::START_MASK) << self::LENGTH_BITS);
     }
 
     public function setLength($val) {
-        $this->length = $val;
+        $this->range = ($this->range & ~self::LENGTH_MASK) | ($val & self::LENGTH_MASK);
     }
 }

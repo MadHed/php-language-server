@@ -42,6 +42,8 @@ class File extends Symbol {
             $offset++;
         }
         $this->lineOffsets = \SplFixedArray::fromArray($lineOffsets);
+
+        $this->references = new RealArray;
     }
 
     public function getRange($start, $length) {
@@ -82,7 +84,7 @@ class File extends Symbol {
     public function getReferenceAtPosition($line, $character) {
         $offset = $this->positionToOffset($line, $character);
 
-        foreach($this->references ?? [] as $ref) {
+        foreach($this->references as $ref) {
             if ($offset >= $ref->getStart() && $offset <= $ref->getStart() + $ref->getLength()) {
                 return $ref;
             }
@@ -130,7 +132,7 @@ class File extends Symbol {
 
     public function onDelete(Repository $repo) {
         parent::onDelete($repo);
-        foreach($this->references ?? [] as $ref) {
+        foreach($this->references as $ref) {
             $ref->onDelete($repo);
         }
     }
