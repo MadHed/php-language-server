@@ -61,11 +61,8 @@ class Workspace
             $symbols = (
                 new \LanguageServer\CodeDB\MultiIterator(
                     $this->db->files()->namespaces(),
-                    $this->db->files()->namespaces()->functions(),
-                    $this->db->files()->namespaces()->classes(),
-                    $this->db->files()->namespaces()->classes()->symbols(),
-                    $this->db->files()->namespaces()->interfaces(),
-                    $this->db->files()->namespaces()->interfaces()->symbols()
+                    $this->db->files()->namespaces()->symbols(),
+                    $this->db->files()->namespaces()->symbols()->symbols()
                 ));
 
             $symbols = $symbols->filter(\LanguageServer\CodeDB\nameContains($query));

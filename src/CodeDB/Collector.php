@@ -19,7 +19,9 @@ use Microsoft\PhpParser\Node\{
     QualifiedName,
     NamespaceUseClause,
     ConstElement,
-    ClassConstDeclaration
+    ClassConstDeclaration,
+    StringLiteral,
+    Expression
 };
 
 use Microsoft\PhpParser\Node\Statement\{
@@ -36,7 +38,8 @@ use Microsoft\PhpParser\Node\Expression\{
     ScopedPropertyAccessExpression,
     BinaryExpression,
     MemberAccessExpression,
-    Variable as VariableExpression
+    Variable as VariableExpression,
+    AnonymousFunctionCreationExpression
 };
 
 class Collector {
@@ -166,14 +169,18 @@ class Collector {
         $this->aliases[end($parts)] = '\\'.$name;
     }
 
+    private function getGlobalNamespace() {
+        if (!isset($this->namespaces[''])) {
+            $ns = new Namespace_('', 0, 0);
+            $this->file->addChild($ns);
+            $this->namespaces[''] = $ns;
+        }
+        return $this->namespaces[''];
+    }
+
     private function getNamespace() {
         if ($this->namespace === null) {
-            if (!isset($this->namespaces[''])) {
-                $ns = new Namespace_('', 0, 0);
-                $this->file->addChild($ns);
-                $this->namespaces[''] = $ns;
-            }
-            $this->namespace = $this->namespaces[''];
+            $this->namespace = $this->getGlobalNamespace();
         }
         return $this->namespace;
     }
@@ -325,7 +332,7 @@ class Collector {
             $name = $node->getName();
             if ($name) {
                 if ($name === 'this') {
-                    if (!$this->currentClass) return;
+                    /*if (!$this->currentClass) return;
                     $start = $node->getStart();
                     $length = $node->getEndPosition() - $start;
                     $ref = new Reference(
@@ -335,7 +342,7 @@ class Collector {
                         $this->currentClass
                     );
                     $this->currentClass->addBackRef($ref);
-                    $this->file->references->append($ref);
+                    $this->file->references->append($ref);*/
                 }
                 else if (!\array_key_exists($name, $this->scope)) {
                     $var = new Variable($name, $this->getStart($node->name), $this->getLength($node->name));
@@ -355,6 +362,30 @@ class Collector {
                     $this->scope[$name]->addBackRef($ref);
                     $this->file->references->append($ref);
                 }
+            }
+        }
+        else if (
+            $node instanceof QualifiedName
+            && ($node->parent instanceof Node\Statement\ExpressionStatement || $node->parent instanceof Expression) &&
+            !(
+                $node->parent instanceof Node\Expression\MemberAccessExpression || $node->parent instanceof CallExpression ||
+                $node->parent instanceof ObjectCreationExpression ||
+                $node->parent instanceof Node\Expression\ScopedPropertyAccessExpression || $node->parent instanceof AnonymousFunctionCreationExpression ||
+                ($node->parent instanceof Node\Expression\BinaryExpression && $node->parent->operator->kind === TokenKind::InstanceOfKeyword)
+            )
+        ) {
+            $name = $this->getText($node);
+            if ($name) {
+                $start = $this->getStart($node);
+                $length = $this->getLength($node);
+                $ref = new Reference(
+                    $this->file,
+                    $start,
+                    $length,
+                    '\\#'.$name
+                );
+                $this->file->references->append($ref);
+                $this->repo->addUnresolvedReference($ref);
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Parameter) {
@@ -489,15 +520,29 @@ class Collector {
             if (
                 $node->callableExpression instanceof QualifiedName
             ) {
-                $funcName = $this->expandName($this->getText($node->callableExpression), true);
-                $ref = new Reference(
-                    $this->file,
-                    $this->getStart($node->callableExpression),
-                    $this->getLength($node->callableExpression),
-                    strtolower($funcName.'()')
-                );
-                $this->repo->addUnresolvedReference($ref);
-                $this->file->references->append($ref);
+                $name = $this->getText($node->callableExpression);
+                if (strcasecmp($name, 'define') === 0) {
+                    if (count($node->argumentExpressionList->children) > 1) {
+                        if ($node->argumentExpressionList->children[0]->expression instanceof StringLiteral) {
+                            $name = $node->argumentExpressionList->children[0]->expression->getStringContentsText();
+                            $con = new Constant($name, $this->getStart($node), $this->getLength($node));
+                            $target = $this->getGlobalNamespace();
+                            $target->addChild($con);
+                            $this->repo->fqnMap[$con->fqn()] = $con;
+                        }
+                    }
+                }
+                else {
+                    $funcName = $this->expandName($name, true);
+                    $ref = new Reference(
+                        $this->file,
+                        $this->getStart($node->callableExpression),
+                        $this->getLength($node->callableExpression),
+                        strtolower($funcName.'()')
+                    );
+                    $this->repo->addUnresolvedReference($ref);
+                    $this->file->references->append($ref);
+                }
             }
         }
         else if ($node instanceof MemberAccessExpression) {
@@ -506,11 +551,13 @@ class Collector {
                 && $node->dereferencableExpression->getName() === 'this'
                 && $this->currentClass
             ) {
+                $memberName = $this->getText($node->memberName);
+                if (strlen($memberName) === 0 || $memberName[0] === '$') return;
                 if ($node->parent instanceof CallExpression) {
-                    $fqn = $this->currentClass->fqn().'::'.strtolower($this->getText($node->memberName)).'()';
+                    $fqn = $this->currentClass->fqn().'::'.strtolower($memberName).'()';
                 }
                 else {
-                    $fqn = $this->currentClass->fqn().'::$'.$this->getText($node->memberName);
+                    $fqn = $this->currentClass->fqn().'::$'.$memberName;
                 }
 
                 $ref = new Reference(

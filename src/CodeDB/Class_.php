@@ -59,14 +59,22 @@ class Class_ extends ClassLike {
             if ($member instanceof Variable && $member->name === $name) {
                 return $member;
             }
+            else if (
+                $get === null
+                && $member instanceof Function_
+                && strcasecmp($member->name, '__get') === 0
+            ) {
+                $get = $member;
+            }
+
         }
         if ($this->extends !== null && $this->extends->target instanceof Class_) {
-            $sym = $this->extends->target->findField($name);
+            $sym = $this->extends->target->findField($name, $get);
             if ($sym !== null) {
                 return $sym;
             }
         }
-        return null;
+        return $get;
     }
 
     public function findMethod($name, $call = null) {
