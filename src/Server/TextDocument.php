@@ -76,12 +76,12 @@ class TextDocument
             }
 
             $symbols = [];
-            foreach($file->children ?? [] as $ns) {
+            foreach($file->children as $ns) {
                 yield null;
                 $symbols[] = $ns;
-                foreach($ns->children ?? [] as $sym) {
+                foreach($ns->children as $sym) {
                     $symbols[] = $sym;
-                    foreach($sym->children ?? [] as $syms) {
+                    foreach($sym->children as $syms) {
                         $symbols[] = $syms;
                     }
                 }
@@ -200,16 +200,14 @@ class TextDocument
 
             $diags = [];
             foreach ($this->db->files as $file) {
-                if (is_array($file->diagnostics)) {
-                    foreach($file->diagnostics as $diag) {
-                        $diags[$file->name][] = new Diagnostic(
-                            $diag->message,
-                            $diag->getRange($file),
-                            0,
-                            0,
-                            null
-                        );
-                    }
+                foreach($file->diagnostics as $diag) {
+                    $diags[$file->name][] = new Diagnostic(
+                        $diag->message,
+                        $diag->getRange($file),
+                        0,
+                        0,
+                        null
+                    );
                 }
             }
             foreach($this->db->references as $refs) {

@@ -34,6 +34,8 @@ class File extends Symbol {
         parent::__construct($name, 0, strlen($content));
         $this->hash = \hash('SHA256', $content);
 
+        $this->references = new DynamicArray;
+
         $lineOffsets[] = 0;
         $offset = 1;
         $len = strlen($content);
@@ -42,8 +44,6 @@ class File extends Symbol {
             $offset++;
         }
         $this->lineOffsets = \SplFixedArray::fromArray($lineOffsets);
-
-        $this->references = new RealArray;
     }
 
     public function getRange($start, $length) {

@@ -154,6 +154,7 @@ class Indexer
                     \gc_mem_caches();
                     if ($db) {
                         $this->db->from($db);
+                        $db = null;
                     }
                 }
                 catch (\Exception $e) {

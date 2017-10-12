@@ -202,11 +202,13 @@ class Collector {
                 $this->namespace = $this->namespaces[$name];
             }
             else {
-                $this->namespace = new Namespace_(
+                $ns =  new Namespace_(
                     $name,
                     $this->getStart($node->name ?? $node),
                     $this->getLength($node->name ?? $node)
                 );
+                $this->namespace = $ns;
+                $this->namespaces[$name] = $ns;
                 $this->file->addChild($this->namespace);
                 $this->namespaces[$name] = $this->namespace;
             }
