@@ -190,7 +190,7 @@ class LanguageServer extends AdvancedJsonRpc\Dispatcher
             // The DefinitionResolver should look in stubs, the project source and dependencies
             $this->definitionResolver = new DefinitionResolver($this->globalIndex);
 
-            $this->db = new \LanguageServer\CodeDB\Repository();
+            $this->db = new \LanguageServer\CodeDB\Repository($rootPath);
 
             $this->documentLoader = new PhpDocumentLoader(
                 $this->contentRetriever,

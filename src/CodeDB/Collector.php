@@ -62,7 +62,7 @@ class Collector {
         $this->filename = $filename;
         $this->src = $src;
         $this->file = new File($filename, $src->fileContents);
-        $repo->files[$filename] = $this->file;
+        $repo->addFile($this->file);
     }
 
     private function expandName($name, $isfunc = false) {
@@ -245,7 +245,7 @@ class Collector {
             if ($name) {
                 $this->currentClass = new Class_($name, $this->getStart($node->name), $this->getLength($node->name));
                 $this->getNamespace()->addChild($this->currentClass);
-                $this->repo->fqnMap[$this->currentClass->fqn()] = $this->currentClass;
+                $this->repo->addSymbol($this->currentClass);
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
@@ -280,7 +280,7 @@ class Collector {
             if ($name) {
                 $this->currentInterface = new Interface_($name, $this->getStart($node->name), $this->getLength($node->name));
                 $this->getNamespace()->addChild($this->currentInterface);
-                $this->repo->fqnMap[$this->currentInterface->fqn()] = $this->currentInterface;
+                $this->repo->addSymbol($this->currentInterface);
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
@@ -304,7 +304,7 @@ class Collector {
             if ($name) {
                 $this->currentFunction = new Function_($name, $this->getStart($node->name), $this->getLength($node->name));
                 $this->getNamespace()->addChild($this->currentFunction);
-                $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
+                $this->repo->addSymbol($this->currentFunction);
             }
         }
         else if ($node instanceof MethodDeclaration) {
@@ -312,7 +312,7 @@ class Collector {
             if ($name && ($this->currentClass || $this->currentInterface)) {
                 $this->currentFunction = new Function_($name, $this->getStart($node->name), $this->getLength($node->name));
                 ($this->currentClass ?? $this->currentInterface)->addChild($this->currentFunction);
-                $this->repo->fqnMap[$this->currentFunction->fqn()] = $this->currentFunction;
+                $this->repo->addSymbol($this->currentFunction);
             }
         }
         else if ($node instanceof ConstDeclaration || $node instanceof ClassConstDeclaration) {
@@ -326,7 +326,7 @@ class Collector {
                     $name = $this->getText($el->name);
                     $co = new Constant($name, $this->getStart($el->name), $this->getLength($el->name));
                     ($this->currentClass ?? $this->currentInterface ?? $this->currentFunction ?? $this->getNamespace())->addChild($co);
-                    $this->repo->fqnMap[$co->fqn()] = $co;
+                    $this->repo->addSymbol($co);
                 }
             }
         }
@@ -530,7 +530,7 @@ class Collector {
                             $con = new Constant($name, $this->getStart($node), $this->getLength($node));
                             $target = $this->getGlobalNamespace();
                             $target->addChild($con);
-                            $this->repo->fqnMap[$con->fqn()] = $con;
+                            $this->repo->addSymbol($con);
                         }
                     }
                 }

@@ -144,32 +144,12 @@ class Indexer
     private function indexFiles(array $files): Promise
     {
         return coroutine(function () use ($files) {
-            $cache = $this->rootPath.'/phpls.cache';
-            if (file_exists($cache) && is_readable($cache)) {
-                /*try {
-                    $this->client->window->logMessage(MessageType::LOG, "Loading symbol cache");
-                    yield timeout();
-                    $db = \unserialize(file_get_contents($cache));
-                    \gc_collect_cycles();
-                    \gc_mem_caches();
-                    if ($db) {
-                        $this->db->from($db);
-                        $db = null;
-                    }
-                }
-                catch (\Exception $e) {
-                    echo $e->getMessage();
-                    $this->client->window->logMessage(MessageType::LOG, "Error loading cache: {$e->getMessage()}");
-                    die();
-                }*/
-            }
-
             foreach ($files as $i => $uri) {
                 // Give LS to the chance to handle requests while indexing
                 yield timeout();
                 $contents = yield $this->documentLoader->retrieve($uri);
 
-                if (!isset($this->db->files[$uri]) || \hash('sha256', $contents) !== $this->db->files[$uri]->hash()) {
+                if (!$this->db->hasFileWithHash($uri, \hash('sha256', $contents))) {
                     $this->client->window->logMessage(MessageType::LOG, "Parsing $uri");
                     $parser = new \Microsoft\PhpParser\Parser();
                     $ast = $parser->parseSourceFile($contents, $uri);
@@ -188,61 +168,18 @@ class Indexer
             $this->client->window->logMessage(MessageType::LOG, "----------------------------------------------");
             $numsyms = 0;
             $numrefs = 0;
-            foreach($this->db->files as $file) {
-                $numsyms++;
-                $numrefs += count($file->references ?? []);
-                foreach($file->children as $namespace) {
-                    $numsyms++;
-                    foreach($namespace->children as $sym1) {
-                        $numsyms++;
-                        foreach($sym1->children as $sym2) {
-                            $numsyms++;
-                            foreach($sym2->children as $sym3) {
-                                $numsyms++;
-                            }
-                        }
-                    }
-                }
-            }
+            // TODO numsyms
             $this->client->window->logMessage(MessageType::LOG, "{$numsyms} Symbols");
             $this->client->window->logMessage(MessageType::LOG, "{$numrefs} References");
 
             $diags = [];
-            foreach ($files as $i => $uri) {
-                $file = $this->db->files[$uri];
-                if (is_array($file->diagnostics)) {
-                    foreach($file->diagnostics as $diag) {
-                        $diags[$uri][] = new Diagnostic(
-                            $diag->message,
-                            $diag->getRange($file),
-                            0,
-                            0,
-                            null
-                        );
-                    }
-                }
-            }
-            foreach($this->db->references as $refs) {
-                foreach($refs as $ref) {
-                    $diags[$ref->file->name][] = new Diagnostic(
-                        "Unresolved reference \"{$ref->target}\"",
-                        $ref->file->getRange($ref->getStart(), $ref->getLength()),
-                        0,
-                        0,
-                        null
-                    );
-                }
-            }
+            // TODO diags from files
+            // TODO diags for unresolved refs
             foreach($diags as $uri => $d) {
                 if ($d) {
                     $this->client->textDocument->publishDiagnostics($uri, $d);
                 }
             }
-
-            $cache = $this->rootPath.'/phpls.cache';
-            //file_put_contents($cache, \serialize($this->db));
-            \gc_collect_cycles();
-            \gc_mem_caches();
         });
     }
 }

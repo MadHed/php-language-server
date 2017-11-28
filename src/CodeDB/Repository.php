@@ -328,18 +328,35 @@ function byFQN() {
 }
 
 class Repository {
-    public $files = [];
-    public $references = [];
-    public $fqnMap = [];
+    private $files = [];
+    private $references = [];
+    private $fqnMap = [];
+
+    private $pdo;
+
+    public function __construct($rootPath) {
+        $this->pdo = new \PDO("sqlite:$rootPath//codedb.sqlite");
+        $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+        /*$this->pdo->exec('DROP TABLE "files"');
+        $this->pdo->exec('DROP TABLE "symbols"');
+        $this->pdo->exec('DROP TABLE "references"');
+
+        $this->pdo->exec('CREATE TABLE "files" ("id" INTEGER PRIMARY KEY, "url" TEXT, "hash" TEXT)');
+        $this->pdo->exec('CREATE TABLE "symbols" ("id" INTEGER PRIMARY KEY, "name" TEXT)');
+        $this->pdo->exec('CREATE TABLE "references" ("id" INTEGER PRIMARY KEY, "name" TEXT)');*/
+
+        $this->pdo->exec('DELETE FROM "files"');
+        $this->pdo->exec('DELETE FROM "symbols"');
+        $this->pdo->exec('DELETE FROM "references"');
+
+        $this->insertFileStmt = $this->pdo->prepare('INSERT INTO "files" ("url", "hash") VALUES (:url, :hash)');
+        $this->insertSymbolStmt = $this->pdo->prepare('INSERT INTO "symbols" ("name", "fqn", "type", "file_id", "parent_id", "range_start", "range_length") VALUES (:name, :fqn, :type, :file_id, :parent_id, :range_start, :range_length)');
+        $this->insertReferenceStmt = $this->pdo->prepare('INSERT INTO "references" ("name", "type", "file_id", "range_start", "range_length") VALUES (:name, :type, :file_id, :range_start, :range_length)');
+    }
 
     public function files() {
         return new ArrayIterator($this->files);
-    }
-
-    public function from($db) {
-        $this->files = $db->files;
-        $this->references = $db->references;
-        $this->fqnMap = $db->fqnMap;
     }
 
     public function resolveReferences() {
@@ -434,6 +451,13 @@ class Repository {
         }
         $this->references[$fqn][] = $ref;
         $ref->target = $fqn;
+        $this->insertReferenceStmt->execute([
+            'name' => $fqn,
+            'type' => 1,
+            'file_id' => 0,
+            'range_start' => $ref->getStart(),
+            'range_length' => $ref->getLength(),
+        ]);
     }
 
     public function removeUnresolvedReference(Reference $ref) {
@@ -456,6 +480,46 @@ class Repository {
         $file = $this->files[$uri];
         $file->onDelete($this);
         unset($this->files[$uri]);
+    }
+
+    public function addFile(File $file) {
+        $this->files[$file->name] = $file;
+        $this->insertFileStmt->execute([
+            'url' => $file->fqn(),
+            'hash' => $file->hash()
+        ]);
+    }
+
+    public function getAllFiles() {
+        return $this->files;
+    }
+
+    public function getAllReferences() {
+        return $this->references;
+    }
+
+    public function getFile(string $uri) {
+        return $this->files[$uri] ?? null;
+    }
+
+    public function addSymbol(Symbol $symbol) {
+        $this->fqnMap[$symbol->fqn()] = $symbol;
+        $this->insertSymbolStmt->execute([
+            'name' => $symbol->name,
+            'name' => $symbol->fqn(),
+            'type' => 1,
+            'file_id' => 0,
+            'range_start' => $symbol->getStart(),
+            'range_length' => $symbol->getLength(),
+        ]);
+    }
+
+    public function hasFileWithHash(string $uri, string $hash) {
+        return isset($this->files[$uri]) && $this->files[$uri]->hash() == $hash;
+    }
+
+    public function hasFile(string $uri) {
+        return isset($this->files[$uri]);
     }
 
     public function getUnresolvedReferenceCount() {

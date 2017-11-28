@@ -9,4 +9,5 @@ node_modules/
 phpls.cache
 phpls.cache.bak
 phpls.cache.bin
-
+*.sqlite
+*.sqlite-journal

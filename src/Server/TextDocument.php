@@ -70,7 +70,7 @@ class TextDocument
     {
         return coroutine(function () use ($textDocument) {
             $codeLens = [];
-            $file = $this->db->files[$textDocument->uri] ?? null;
+            $file = $this->db->getFile($textDocument->uri);
             if ($file === null) {
                 return $codeLens;
             }
@@ -111,7 +111,7 @@ class TextDocument
     public function documentSymbol(TextDocumentIdentifier $textDocument): Promise
     {
         return coroutine(function () use ($textDocument) {
-            $file = $this->db->files[$textDocument->uri];
+            $file = $this->db->getFile($textDocument->uri);
             $symbols = (
                 new \LanguageServer\CodeDB\MultiIterator(
                     $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces(),
@@ -199,7 +199,8 @@ class TextDocument
             echo "resolveReferences: ".((int)((microtime(true)-$start)*1000))."ms\n";
 
             $diags = [];
-            foreach ($this->db->files as $file) {
+            // TODO: DIAGS
+            /*foreach ($this->db->getAllFiles() as $file) {
                 foreach($file->diagnostics as $diag) {
                     $diags[$file->name][] = new Diagnostic(
                         $diag->message,
@@ -210,7 +211,7 @@ class TextDocument
                     );
                 }
             }
-            foreach($this->db->references as $refs) {
+            foreach($this->db->getAllReferences() as $refs) {
                 foreach($refs as $ref) {
                     $diags[$ref->file->name][] = new Diagnostic(
                         "Unresolved reference \"{$ref->target}\"",
@@ -220,7 +221,7 @@ class TextDocument
                         null
                     );
                 }
-            }
+            }*/
             foreach($diags as $uri => $d) {
                 if ($d) {
                     $this->client->textDocument->publishDiagnostics($uri, $d);
@@ -276,8 +277,8 @@ class TextDocument
     ): Promise {
         return coroutine(function () use($textDocument, $position) {
             yield null;
-            if (!isset($this->db->files[$textDocument->uri])) return [];
-            $file = $this->db->files[$textDocument->uri];
+            if (!$this->db->hasFile($textDocument->uri)) return [];
+            $file = $this->db->getFile($textDocument->uri);
             $sym = $file->getSymbolAtPosition($position->line, $position->character);
             if (!$sym) {
                 $ref = $file->getReferenceAtPosition($position->line, $position->character);
@@ -371,8 +372,8 @@ class TextDocument
     {
         return coroutine(function () use($textDocument, $position) {
             yield null;
-            if (!isset($this->db->files[$textDocument->uri])) return [];
-            $file = $this->db->files[$textDocument->uri];
+            if (!$this->db->hasFile($textDocument->uri)) return [];
+            $file = $this->db->getFile($textDocument->uri);
             $ref = $file->getReferenceAtPosition($position->line, $position->character);
             if (!$ref) return [];
             if ($ref->isUnresolved()) return [];
@@ -425,8 +426,8 @@ class TextDocument
     {
         return coroutine(function () use($textDocument, $position) {
             yield null;
-            if (!isset($this->db->files[$textDocument->uri])) return null;
-            $file = $this->db->files[$textDocument->uri];
+            if (!$this->db->hasFile($textDocument->uri)) return null;
+            $file = $this->db->getFile($textDocument->uri);
             if ($ref = $file->getReferenceAtPosition($position->line, $position->character)) {
                 if ($ref->isUnresolved()) return null;
 
