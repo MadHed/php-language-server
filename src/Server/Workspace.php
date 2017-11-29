@@ -15,11 +15,14 @@ use LanguageServer\Protocol\{
     DependencyReference,
     Location,
     MessageType,
-    SymbolKind
+    SymbolKind,
+    Range,
+    Position
 };
 use Sabre\Event\Promise;
 use function Sabre\Event\coroutine;
 use function LanguageServer\waitForEvent;
+use LanguageServer\CodeDB\Symbol;
 
 /**
  * Provides method handlers for all workspace/* methods
@@ -58,38 +61,25 @@ class Workspace
     public function symbol(string $query): Promise
     {
         return coroutine(function () use ($query) {
-            $symbols = (
-                new \LanguageServer\CodeDB\MultiIterator(
-                    $this->db->files()->namespaces(),
-                    $this->db->files()->namespaces()->symbols(),
-                    $this->db->files()->namespaces()->symbols()->symbols()
-                ));
-
-            $symbols = $symbols->filter(\LanguageServer\CodeDB\nameContains($query));
-            $symbols = $symbols->limit(100);
+            $symbols = $this->db->getSymbolsByName($query);
 
             yield;
             $results = [];
             foreach($symbols as $symbol) {
-                $file = $symbol->getFile();
-
                 $kind = SymbolKind::CONSTANT;
-                if ($symbol instanceof \LanguageServer\CodeDB\Class_) {
+                if ($symbol->type == Symbol::_CLASS) {
                     $kind = SymbolKind::CLASS_;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Interface_) {
+                else if ($symbol->type == Symbol::_INTERFACE) {
                     $kind = SymbolKind::INTERFACE;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Function_) {
+                else if ($symbol->type == Symbol::_FUNCTION) {
                     $kind = SymbolKind::FUNCTION;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Variable) {
+                else if ($symbol->type == Symbol::_VARIABLE) {
                     $kind = SymbolKind::VARIABLE;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\File) {
-                    $kind = SymbolKind::FILE;
-                }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Namespace_) {
+                else if ($symbol->type == Symbol::_NAMESPACE) {
                     $kind = SymbolKind::NAMESPACE;
                 }
 
@@ -97,10 +87,10 @@ class Workspace
                     $symbol->name,
                     $kind,
                     new \LanguageServer\Protocol\Location(
-                        $file->name,
-                        $file->getRange($symbol->getStart(), $symbol->getLength())
+                        $symbol->uri,
+                        new Range(new Position((int)$symbol->range_start_line, (int)$symbol->range_start_character), new Position((int)$symbol->range_end_line, (int)$symbol->range_end_character))
                     ),
-                    $symbol->parent ? $symbol->parent->fqn() : ''
+                    $symbol->parent_fqn
                 );
             }
             return $results;

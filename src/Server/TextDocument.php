@@ -35,6 +35,7 @@ use function LanguageServer\{
     isVendored, waitForEvent, getPackageName, timeout
 };
 use function Sabre\Event\coroutine;
+use LanguageServer\CodeDB\Symbol;
 
 /**
  * Provides method handlers for all textDocument/* methods
@@ -69,29 +70,16 @@ class TextDocument
     public function codeLens(TextDocumentIdentifier $textDocument): Promise
     {
         return coroutine(function () use ($textDocument) {
+            yield;
             $codeLens = [];
-            $file = $this->db->getFile($textDocument->uri);
-            if ($file === null) {
-                return $codeLens;
-            }
 
-            $symbols = [];
-            foreach($file->children as $ns) {
-                yield null;
-                $symbols[] = $ns;
-                foreach($ns->children as $sym) {
-                    $symbols[] = $sym;
-                    foreach($sym->children as $syms) {
-                        $symbols[] = $syms;
-                    }
-                }
-            }
+            $symbols = $this->db->getSymbolRefCount($textDocument->uri);
 
             foreach($symbols as $sym) {
                 $cl = new CodeLens;
-                $cl->range = $file->getRange($sym->getStart(), $sym->getLength());
+                $cl->range = new Range(new Position((int)$sym->range_start_line, (int)$sym->range_start_character), new Position((int)$sym->range_end_line, (int)$sym->range_end_character));
                 $cmd = new Command;
-                $cmd->title = count($sym->backRefs).' references';
+                $cmd->title = $sym->ref_count.' references';
                 $cmd->command = '';
                 $cl->command = $cmd;
                 $codeLens[] = $cl;
@@ -111,34 +99,25 @@ class TextDocument
     public function documentSymbol(TextDocumentIdentifier $textDocument): Promise
     {
         return coroutine(function () use ($textDocument) {
-            $file = $this->db->getFile($textDocument->uri);
-            $symbols = (
-                new \LanguageServer\CodeDB\MultiIterator(
-                    $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces(),
-                    $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces()->classes(),
-                    $this->db->files()->filter(\LanguageServer\CodeDB\nameEquals($textDocument->uri))->namespaces()->classes()->symbols()
-                ));
+            $symbols = $this->db->getSymbolsByUri($textDocument->uri);
 
             yield null;
             $results = [];
             foreach($symbols as $symbol) {
                 $kind = SymbolKind::CONSTANT;
-                if ($symbol instanceof \LanguageServer\CodeDB\Class_) {
+                if ($symbol->type == Symbol::_CLASS) {
                     $kind = SymbolKind::CLASS_;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Interface_) {
+                else if ($symbol->type == Symbol::_INTERFACE) {
                     $kind = SymbolKind::INTERFACE;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Function_) {
+                else if ($symbol->type == Symbol::_FUNCTION) {
                     $kind = SymbolKind::FUNCTION;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Variable) {
+                else if ($symbol->type == Symbol::_VARIABLE) {
                     $kind = SymbolKind::VARIABLE;
                 }
-                else if ($symbol instanceof \LanguageServer\CodeDB\File) {
-                    $kind = SymbolKind::FILE;
-                }
-                else if ($symbol instanceof \LanguageServer\CodeDB\Namespace_) {
+                else if ($symbol->type == Symbol::_NAMESPACE) {
                     $kind = SymbolKind::NAMESPACE;
                 }
 
@@ -147,9 +126,9 @@ class TextDocument
                     $kind,
                     new \LanguageServer\Protocol\Location(
                         $textDocument->uri,
-                        $file->getRange($symbol->getStart(), $symbol->getLength())
+                        new Range(new Position((int)$symbol->range_start_line, (int)$symbol->range_start_character), new Position((int)$symbol->range_end_line, (int)$symbol->range_end_character))
                     ),
-                    $symbol->parent ? $symbol->parent->fqn() : ''
+                    $symbol->parent_fqn
                 );
             }
             return $results;
@@ -187,47 +166,56 @@ class TextDocument
         return coroutine(function () use($textDocument, $contentChanges) {
             $start = microtime(true);
             yield null;
-            $this->db->removeFile($textDocument->uri);
-            echo "removeFile: ".((int)((microtime(true)-$start)*1000))."ms\n";
-            $parser = new \Microsoft\PhpParser\Parser();
-            $ast = $parser->parseSourceFile($contentChanges[0]->text, $textDocument->uri);
-            echo "parse: ".((int)((microtime(true)-$start)*1000))."ms\n";
-            $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $ast);
-            $collector->iterate($ast);
-            echo "collect: ".((int)((microtime(true)-$start)*1000))."ms\n";
-            $this->db->resolveReferences();
-            echo "resolveReferences: ".((int)((microtime(true)-$start)*1000))."ms\n";
 
-            $diags = [];
-            // TODO: DIAGS
-            /*foreach ($this->db->getAllFiles() as $file) {
-                foreach($file->diagnostics as $diag) {
-                    $diags[$file->name][] = new Diagnostic(
-                        $diag->message,
-                        $diag->getRange($file),
-                        0,
-                        0,
-                        null
-                    );
+            try {
+                $this->db->beginTransaction();
+                $this->db->removeFile($textDocument->uri);
+                echo "removeFile: ".((int)((microtime(true)-$start)*1000))."ms\n";
+                $parser = new \Microsoft\PhpParser\Parser();
+                $ast = $parser->parseSourceFile($contentChanges[0]->text, $textDocument->uri);
+                echo "parse: ".((int)((microtime(true)-$start)*1000))."ms\n";
+                $collector = new \LanguageServer\CodeDB\Collector($this->db, $textDocument->uri, $ast);
+                $collector->iterate($ast);
+                echo "collect: ".((int)((microtime(true)-$start)*1000))."ms\n";
+                $this->db->resolveReferences();
+                echo "resolveReferences: ".((int)((microtime(true)-$start)*1000))."ms\n";
+
+                $diags = [];
+                // TODO: DIAGS
+                /*foreach ($this->db->getAllFiles() as $file) {
+                    foreach($file->diagnostics as $diag) {
+                        $diags[$file->name][] = new Diagnostic(
+                            $diag->message,
+                            $diag->getRange($file),
+                            0,
+                            0,
+                            null
+                        );
+                    }
                 }
+                foreach($this->db->getAllReferences() as $refs) {
+                    foreach($refs as $ref) {
+                        $diags[$ref->file->name][] = new Diagnostic(
+                            "Unresolved reference \"{$ref->target}\"",
+                            $ref->file->getRange($ref->getStart(), $ref->getLength()),
+                            0,
+                            0,
+                            null
+                        );
+                    }
+                }*/
+                foreach($diags as $uri => $d) {
+                    if ($d) {
+                        $this->client->textDocument->publishDiagnostics($uri, $d);
+                    }
+                }
+                echo "didChange: ".((int)((microtime(true)-$start)*1000))."ms\n";
+                $this->db->commit();
             }
-            foreach($this->db->getAllReferences() as $refs) {
-                foreach($refs as $ref) {
-                    $diags[$ref->file->name][] = new Diagnostic(
-                        "Unresolved reference \"{$ref->target}\"",
-                        $ref->file->getRange($ref->getStart(), $ref->getLength()),
-                        0,
-                        0,
-                        null
-                    );
-                }
-            }*/
-            foreach($diags as $uri => $d) {
-                if ($d) {
-                    $this->client->textDocument->publishDiagnostics($uri, $d);
-                }
+            catch(\Exception $e) {
+                $this->db->rollback();
+                throw $e;
             }
-            echo "didChange: ".((int)((microtime(true)-$start)*1000))."ms\n";
         });
         /* $document = $this->documentLoader->get($textDocument->uri);
         $document->updateContent($contentChanges[0]->text);
@@ -277,20 +265,19 @@ class TextDocument
     ): Promise {
         return coroutine(function () use($textDocument, $position) {
             yield null;
-            if (!$this->db->hasFile($textDocument->uri)) return [];
-            $file = $this->db->getFile($textDocument->uri);
-            $sym = $file->getSymbolAtPosition($position->line, $position->character);
+            $sym = $this->db->getSymbolAtPosition($textDocument->uri, $position->line, $position->character);
             if (!$sym) {
-                $ref = $file->getReferenceAtPosition($position->line, $position->character);
-                if (!$ref || $ref->isUnresolved()) return [];
-                $sym = $ref->target;
+                $ref = $this->db->getReferenceAtPosition($textDocument->uri, $position->line, $position->character);
+                if (!$ref || !$ref->symbol_id) return [];
+                $sym = $this->db->getSymbolById($ref->symbol_id);
             }
             if (!$sym) return [];
             $locations = [];
-            foreach($sym->backRefs as $ref) {
+            $refs = $this->db->getReferencesBySymbolId($sym->id);
+            foreach($refs as $ref) {
                 $locations[] = new Location(
-                    $ref->file->name,
-                    $ref->file->getRange($ref->getStart(), $ref->getLength())
+                    $ref->uri,
+                    new Range(new Position((int)$ref->range_start_line, (int)$ref->range_start_character), new Position((int)$ref->range_end_line, (int)$ref->range_end_character))
                 );
             }
             return $locations;
@@ -372,15 +359,16 @@ class TextDocument
     {
         return coroutine(function () use($textDocument, $position) {
             yield null;
-            if (!$this->db->hasFile($textDocument->uri)) return [];
-            $file = $this->db->getFile($textDocument->uri);
-            $ref = $file->getReferenceAtPosition($position->line, $position->character);
+            $ref = $this->db->getReferenceAtPosition($textDocument->uri, $position->line, $position->character);
             if (!$ref) return [];
-            if ($ref->isUnresolved()) return [];
-            $symFile = $ref->target->getFile();
+            if (!$ref->symbol_id) return [];
+            $sym = $this->db->getSymbolById($ref->symbol_id);
+            if (!$sym) return [];
+            $file = $this->db->getFilebyId($sym->file_id);
+            if (!$file) return [];
             return new Location(
-                $symFile->name,
-                $symFile->getRange($ref->target->getStart(), $ref->target->getLength())
+                $file->uri,
+                new Range(new Position((int)$sym->range_start_line, (int)$sym->range_start_character), new Position((int)$sym->range_end_line, (int)$sym->range_end_character))
             );
         });
         /* return coroutine(function () use ($textDocument, $position) {
@@ -426,26 +414,22 @@ class TextDocument
     {
         return coroutine(function () use($textDocument, $position) {
             yield null;
-            if (!$this->db->hasFile($textDocument->uri)) return null;
-            $file = $this->db->getFile($textDocument->uri);
-            if ($ref = $file->getReferenceAtPosition($position->line, $position->character)) {
-                if ($ref->isUnresolved()) return null;
-
+            if ($ref = $this->db->getReferenceAtPosition($textDocument->uri, $position->line, $position->character)) {
                 return new Hover(
                     new MarkedString(
                         'php',
-                        $ref->getDescription()
+                        $ref->fqn
                     ),
-                    $ref->file->getRange($ref->getStart(), $ref->getLength())
+                    new Range(new Position((int)$ref->range_start_line, (int)$ref->range_start_character), new Position((int)$ref->range_end_line, (int)$ref->range_end_character))
                 );
             }
-            else if ($sym = $file->getSymbolAtPosition($position->line, $position->character)) {
+            else if ($sym = $this->db->getSymbolAtPosition($textDocument->uri, $position->line, $position->character)) {
                 return new Hover(
                     new MarkedString(
                         'php',
-                        $sym->getDescription()
+                        $sym->fqn
                     ),
-                    $file->getRange($sym->getStart(), $sym->getLength())
+                    new Range(new Position((int)$sym->range_start_line, (int)$sym->range_start_character), new Position((int)$sym->range_end_line, (int)$sym->range_end_character))
                 );
             }
             return null;

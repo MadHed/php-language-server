@@ -2,67 +2,23 @@
 
 namespace LanguageServer\CodeDB;
 
-abstract class Symbol extends FileRegion {
+class Symbol {
+    public $id;
+    public $parent_id;
+    public $type;
     public $name;
-    public $parent;
-    public $children;
-    public $backRefs;
+    public $fqn;
+    public $file_id;
+    public $range_start_line;
+    public $range_start_character;
+    public $range_end_line;
+    public $range_end_character;
 
-    abstract function fqn(): string;
-
-    public function __construct(string $name, $start, $length) {
-        parent::__construct($start, $length);
-        $this->name = $name;
-        $this->backRefs = new DynamicArray;
-        $this->children = new DynamicArray;
-    }
-
-    public function addChild(Symbol $child) {
-        $this->children->append($child);
-        $child->parent = $this;
-    }
-
-    public function addBackRef(Reference $ref) {
-        $this->backRefs->append($ref);
-    }
-
-    public function removeBackRef(Reference $ref) {
-        $this->backRefs->erase($ref);
-    }
-
-    public function getFile() {
-        $node = $this;
-        do {
-            if ($node instanceof File) {
-                return $node;
-            }
-            $node = $node->parent;
-        } while ($node !== null);
-        return null;
-    }
-
-    public function getDescription() {
-        return "<?php\n//".$this->fqn();
-    }
-
-    public function onReferenceDelete(Reference $ref) {
-        $this->removeBackRef($ref);
-    }
-
-    public function onDelete(Repository $repo) {
-        foreach($this->backRefs as $br) {
-            $br->onSymbolDelete($repo);
-        }
-        foreach($this->children as $child) {
-            $child->onDelete($repo);
-        }
-    }
-
-    public function getReferenceAtOffset($offset) {
-        foreach($this->children as $child) {
-            $ref = $child->getReferenceAtOffset($offset);
-            if ($ref) return $ref;
-        }
-        return null;
-    }
+    const _NAMESPACE = 1;
+    const _CLASS = 2;
+    const _FUNCTION = 3;
+    const _INTERFACE = 4;
+    const _VARIABLE = 5;
+    const _TRAIT = 6;
+    const _CONSTANT = 7;
 }

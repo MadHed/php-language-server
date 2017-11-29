@@ -61,8 +61,70 @@ class Collector {
         $this->repo = $repo;
         $this->filename = $filename;
         $this->src = $src;
-        $this->file = new File($filename, $src->fileContents);
+        $this->file = new File;
+        $this->file->uri = $filename;
+        $this->file->hash = \hash('sha256', $src);
         $repo->addFile($this->file);
+    }
+
+    private function createSymbol($type, string $name, $range = null) {
+        $fqn = $name;
+        $parent_id = null;
+
+        switch($type) {
+            case Symbol::_VARIABLE: $fqn = '$'.$fqn; break;
+            case Symbol::_CONSTANT: $fqn = '#'.$fqn; break;
+            case Symbol::_FUNCTION: $fqn = $fqn.'()'; break;
+        }
+
+        if ($this->currentFunction) {
+            $fqn = $this->currentFunction->fqn.$fqn;
+            $parent_id = $this->currentFunction->id;
+        }
+        else if ($this->currentClass) {
+            $fqn = $this->currentClass->fqn.'::'.$fqn;
+            $parent_id = $this->currentClass->id;
+        }
+        else if ($this->currentInterface) {
+            $fqn = $this->currentInterface->fqn.'::'.$fqn;
+            $parent_id = $this->currentInterface->id;
+        }
+        else if ($this->namespace) {
+            $fqn = $this->namespace->fqn.'\\'.$fqn;
+            $parent_id = $this->namespace->id;
+        }
+
+        if ($fqn == '') $fqn = '\\';
+
+        if ($fqn[0] !== '\\') $fqn = '\\'.$fqn;
+
+        $fqn = strtolower($fqn);
+
+        $sym = new Symbol;
+        $sym->parent_id = $parent_id;
+        $sym->name = $name;
+        $sym->fqn = $fqn;
+        $sym->type = $type;
+        $sym->file_id = $this->file->id;
+        $sym->range_start_line = $range ? $range->start->line : 0;
+        $sym->range_start_character = $range ? $range->start->character : 0;
+        $sym->range_end_line = $range ? $range->end->line : 0;
+        $sym->range_end_character = $range ? $range->end->character : 0;
+        $this->repo->addSymbol($sym);
+        return $sym;
+    }
+
+    private function createReference($type, string $fqn, $range) {
+        $ref = new Reference;
+        $ref->fqn = strtolower($fqn);
+        $ref->type = $type;
+        $ref->file_id = $this->file->id;
+        $ref->range_start_line = $range->start->line;
+        $ref->range_start_character = $range->start->character;
+        $ref->range_end_line = $range->end->line;
+        $ref->range_end_character = $range->end->character;
+        $this->repo->addReference($ref);
+        return $ref;
     }
 
     private function expandName($name, $isfunc = false) {
@@ -89,7 +151,7 @@ class Collector {
             }
             else {
                 if ($this->namespace) {
-                    return $this->namespace->fqn().'\\'.$name;
+                    return $this->namespace->fqn.'\\'.$name;
                 }
                 else {
                     return '\\'.$name;
@@ -171,8 +233,7 @@ class Collector {
 
     private function getGlobalNamespace() {
         if (!isset($this->namespaces[''])) {
-            $ns = new Namespace_('', 0, 0);
-            $this->file->addChild($ns);
+            $ns = $this->createSymbol(Symbol::_NAMESPACE, '');
             $this->namespaces[''] = $ns;
         }
         return $this->namespaces[''];
@@ -187,14 +248,14 @@ class Collector {
 
     private function visit($node) {
         $diag = DiagnosticsProvider::checkDiagnostics($node);
-        if ($diag) {
+/*        if ($diag) {
             $this->file->addDiagnostic(new Diagnostic(
                 $diag->kind,
                 $diag->message,
                 $diag->start,
                 $diag->length
             ));
-        }
+        }*/
 
         if ($node instanceof NamespaceDefinition) {
             $name = $this->getText($node->name);
@@ -202,15 +263,9 @@ class Collector {
                 $this->namespace = $this->namespaces[$name];
             }
             else {
-                $ns =  new Namespace_(
-                    $name,
-                    $this->getStart($node->name ?? $node),
-                    $this->getLength($node->name ?? $node)
-                );
+                $ns = $this->createSymbol(Symbol::_NAMESPACE, $name, $this->getRangeFromNode($node->name ?? $node));
                 $this->namespace = $ns;
                 $this->namespaces[$name] = $ns;
-                $this->file->addChild($this->namespace);
-                $this->namespaces[$name] = $this->namespace;
             }
         }
         else if ($node instanceof NamespaceUseClause) {
@@ -243,33 +298,17 @@ class Collector {
         else if ($node instanceof ClassDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
-                $this->currentClass = new Class_($name, $this->getStart($node->name), $this->getLength($node->name));
-                $this->getNamespace()->addChild($this->currentClass);
-                $this->repo->addSymbol($this->currentClass);
+                $this->currentClass = $this->createSymbol(Symbol::_CLASS, $name, $this->getRangeFromNode($node->name));
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
-                    $ref = new Reference(
-                        $this->file,
-                        $this->getStart($node->classBaseClause->baseClass),
-                        $this->getLength($node->classBaseClause->baseClass),
-                        strtolower($this->expandName($className))
-                    );
-                    $this->currentClass->extends = $ref;
-                    $this->repo->addUnresolvedReference($ref);
+                    $ref = $this->createReference(0, strtolower($this->expandName($className)), $this->getRangeFromNode($node->classBaseClause->baseClass));
                 }
                 if ($node->classInterfaceClause && $node->classInterfaceClause->interfaceNameList) {
                     foreach($node->classInterfaceClause->interfaceNameList->children as $interfaceName) {
                         if ($interfaceName instanceof Node) {
                             $name = $interfaceName->getText();
-                            $ref = new Reference(
-                                $this->file,
-                                $this->getStart($interfaceName),
-                                $this->getLength($interfaceName),
-                                strtolower($this->expandName($name))
-                            );
-                            $this->currentClass->implements[] = $ref;
-                            $this->repo->addUnresolvedReference($ref);
+                            $ref = $this->createReference(0, strtolower($this->expandName($name)), $this->getRangeFromNode($interfaceName));
                         }
                     }
                 }
@@ -278,22 +317,13 @@ class Collector {
         else if ($node instanceof InterfaceDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
-                $this->currentInterface = new Interface_($name, $this->getStart($node->name), $this->getLength($node->name));
-                $this->getNamespace()->addChild($this->currentInterface);
-                $this->repo->addSymbol($this->currentInterface);
+                $this->currentInterface = $this->createSymbol(Symbol::_INTERFACE, $name, $this->getRangeFromNode($node->name));
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
                         if ($interfaceName instanceof Node) {
                             $name = $interfaceName->getText();
-                            $ref = new Reference(
-                                $this->file,
-                                $this->getStart($interfaceName),
-                                $this->getLength($interfaceName),
-                                strtolower($this->expandName($name))
-                            );
-                            $this->currentInterface->extends[] = $ref;
-                            $this->repo->addUnresolvedReference($ref);
+                            $ref = $this->createReference(0, strtolower($this->expandName($name)), $this->getRangeFromNode($interfaceName));
                         }
                     }
                 }
@@ -302,17 +332,13 @@ class Collector {
         else if ($node instanceof FunctionDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
-                $this->currentFunction = new Function_($name, $this->getStart($node->name), $this->getLength($node->name));
-                $this->getNamespace()->addChild($this->currentFunction);
-                $this->repo->addSymbol($this->currentFunction);
+                $this->currentFunction = $this->createSymbol(Symbol::_FUNCTION, $name, $this->getRangeFromNode($node->name));
             }
         }
         else if ($node instanceof MethodDeclaration) {
             $name = $node->name->getText($this->src);
             if ($name && ($this->currentClass || $this->currentInterface)) {
-                $this->currentFunction = new Function_($name, $this->getStart($node->name), $this->getLength($node->name));
-                ($this->currentClass ?? $this->currentInterface)->addChild($this->currentFunction);
-                $this->repo->addSymbol($this->currentFunction);
+                $this->currentFunction = $this->createSymbol(Symbol::_FUNCTION, $name, $this->getRangeFromNode($node->name));
             }
         }
         else if ($node instanceof ConstDeclaration || $node instanceof ClassConstDeclaration) {
@@ -324,9 +350,7 @@ class Collector {
                 foreach($elements as $el) {
                     if (!$el instanceof ConstElement) continue;
                     $name = $this->getText($el->name);
-                    $co = new Constant($name, $this->getStart($el->name), $this->getLength($el->name));
-                    ($this->currentClass ?? $this->currentInterface ?? $this->currentFunction ?? $this->getNamespace())->addChild($co);
-                    $this->repo->addSymbol($co);
+                    $co = $this->createSymbol(Symbol::_CONSTANT, $name, $this->getRangeFromNode($el->name));
                 }
             }
         }
@@ -347,22 +371,12 @@ class Collector {
                     $this->file->references->append($ref);*/
                 }
                 else if (!\array_key_exists($name, $this->scope)) {
-                    $var = new Variable($name, $this->getStart($node->name), $this->getLength($node->name));
+                    $var = $this->createSymbol(Symbol::_VARIABLE, $name, $this->getRangeFromNode($node->name));
                     $this->scope[$name] = $var;
-                    $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
-                    $target->addChild($var);
                 }
                 else {
-                    $start = $node->getStart();
-                    $length = $node->getEndPosition() - $start;
-                    $ref = new Reference(
-                        $this->file,
-                        $start,
-                        $length,
-                        $this->scope[$name]
-                    );
-                    $this->scope[$name]->addBackRef($ref);
-                    $this->file->references->append($ref);
+                    $var = $this->scope[$name];
+                    $ref = $this->createReference(0, $var->fqn, $this->getRangeFromNode($node));
                 }
             }
         }
@@ -378,25 +392,14 @@ class Collector {
         ) {
             $name = $this->getText($node);
             if ($name) {
-                $start = $this->getStart($node);
-                $length = $this->getLength($node);
-                $ref = new Reference(
-                    $this->file,
-                    $start,
-                    $length,
-                    '\\#'.$name
-                );
-                $this->file->references->append($ref);
-                $this->repo->addUnresolvedReference($ref);
+                $ref = $this->createReference(0, '\\#'.$name, $this->getRangeFromNode($node));
             }
         }
         else if ($node instanceof \Microsoft\PhpParser\Node\Parameter) {
             $name = $node->getName();
             if ($name) {
-                $var = new Variable($name, $this->getStart($node->variableName), $this->getLength($node->variableName));
+                $var = $this->createSymbol(Symbol::_VARIABLE, $name, $this->getRangeFromNode($node->variableName));
                 $this->scope[$name] = $var;
-                $target = $this->currentFunction ?? $this->currentClass ?? $this->getNamespace();
-                $target->addChild($var);
             }
         }
         else if ($node instanceof ObjectCreationExpression) {
@@ -412,11 +415,10 @@ class Collector {
 
             if ($name === 'self' || $name === 'static') {
                 if (!$this->currentClass) return;
-                $fqn = $this->currentClass->fqn();
+                $fqn = $this->currentClass->fqn;
             }
             else if ($name === 'parent') {
-                if (!$this->currentClass || !$this->currentClass->extends) return;
-                $fqn = $this->currentClass->extends->target;
+                return; // TODO
             }
             else if ($name === 'class') {
                 return;
@@ -425,14 +427,7 @@ class Collector {
                 $fqn = $this->expandName($name);
             }
 
-            $ref = new Reference(
-                $this->file,
-                $this->getStart($node->classTypeDesignator),
-                $this->getLength($node->classTypeDesignator),
-                strtolower($fqn)
-            );
-            $this->file->references->append($ref);
-            $this->repo->addUnresolvedReference($ref);
+            $ref = $this->createReference(0, strtolower($fqn), $this->getRangeFromNode($node->classTypeDesignator));
         }
         else if ($node instanceof ScopedPropertyAccessExpression) {
             // ->callableExpression
@@ -447,12 +442,10 @@ class Collector {
                 $className = $this->getText($node->scopeResolutionQualifier);
                 if ($className === 'self' || $className === 'static') {
                     if (!$this->currentClass) return;
-                    $className = $this->currentClass->fqn();
+                    $className = $this->currentClass->fqn;
                 }
                 else if ($className === 'parent') {
-                    if (!$this->currentClass) return;
-                    if (!$this->currentClass->extends) return;
-                    $className = $this->currentClass->extends->target;
+                    return; // TODO
                 }
                 else {
                     $className = $this->expandName($className);
@@ -467,23 +460,9 @@ class Collector {
                     $refName = strtolower($className).'::#'.$memberName;
                 }
 
-                $ref = new Reference(
-                    $this->file,
-                    $this->getStart($node->scopeResolutionQualifier),
-                    $this->getLength($node->scopeResolutionQualifier),
-                    strtolower($className)
-                );
-                $this->repo->addUnresolvedReference($ref);
-                $this->file->references->append($ref);
+                $ref = $this->createReference(0, strtolower($className), $this->getRangeFromNode($node->scopeResolutionQualifier));
 
-                $ref = new Reference(
-                    $this->file,
-                    $this->getStart($node->memberName),
-                    $this->getLength($node->memberName),
-                    $refName
-                );
-                $this->repo->addUnresolvedReference($ref);
-                $this->file->references->append($ref);
+                $ref = $this->createReference(0, $refName, $this->getRangeFromNode($node->memberName));
             }
         }
         else if ($node instanceof BinaryExpression) {
@@ -497,25 +476,16 @@ class Collector {
                 $className = $this->getText($node->rightOperand);
                 if ($className === 'self' || $className === 'static') {
                     if (!$this->currentClass) return;
-                    $className = $this->currentClass->fqn();
+                    $className = $this->currentClass->fqn;
                 }
                 else if ($className === 'parent') {
-                    if (!$this->currentClass) return;
-                    if (!$this->currentClass->extends) return;
-                    $className = $this->currentClass->extends->target;
+                    return; // TODO
                 }
                 else {
                     $className = $this->expandName($className);
                 }
 
-                $ref = new Reference(
-                    $this->file,
-                    $this->getStart($node->rightOperand),
-                    $this->getLength($node->rightOperand),
-                    strtolower($className)
-                );
-                $this->repo->addUnresolvedReference($ref);
-                $this->file->references->append($ref);
+                $ref = $this->createReference(0, strtolower($className), $this->getRangeFromNode($node->rightOperand));
             }
         }
         else if ($node instanceof CallExpression) {
@@ -527,23 +497,13 @@ class Collector {
                     if (count($node->argumentExpressionList->children) > 1) {
                         if ($node->argumentExpressionList->children[0]->expression instanceof StringLiteral) {
                             $name = $node->argumentExpressionList->children[0]->expression->getStringContentsText();
-                            $con = new Constant($name, $this->getStart($node), $this->getLength($node));
-                            $target = $this->getGlobalNamespace();
-                            $target->addChild($con);
-                            $this->repo->addSymbol($con);
+                            $con = $this->createSymbol(Symbol::_CONSTANT, $name, $this->getRangeFromNode($node->argumentExpressionList->children[0]));
                         }
                     }
                 }
                 else {
                     $funcName = $this->expandName($name, true);
-                    $ref = new Reference(
-                        $this->file,
-                        $this->getStart($node->callableExpression),
-                        $this->getLength($node->callableExpression),
-                        strtolower($funcName.'()')
-                    );
-                    $this->repo->addUnresolvedReference($ref);
-                    $this->file->references->append($ref);
+                    $ref = $this->createReference(0, strtolower($funcName.'()'), $this->getRangeFromNode($node->callableExpression));
                 }
             }
         }
@@ -556,20 +516,13 @@ class Collector {
                 $memberName = $this->getText($node->memberName);
                 if (strlen($memberName) === 0 || $memberName[0] === '$') return;
                 if ($node->parent instanceof CallExpression) {
-                    $fqn = $this->currentClass->fqn().'::'.strtolower($memberName).'()';
+                    $fqn = $this->currentClass->fqn.'::'.strtolower($memberName).'()';
                 }
                 else {
-                    $fqn = $this->currentClass->fqn().'::$'.$memberName;
+                    $fqn = $this->currentClass->fqn.'::$'.$memberName;
                 }
 
-                $ref = new Reference(
-                    $this->file,
-                    $this->getStart($node->memberName),
-                    $this->getLength($node->memberName),
-                    $fqn
-                );
-                $this->repo->addUnresolvedReference($ref);
-                $this->file->references->append($ref);
+                $ref = $this->createReference(0, $fqn, $this->getRangeFromNode($node->memberName));
             }
         }
     }

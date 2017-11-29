@@ -144,6 +144,8 @@ class Indexer
     private function indexFiles(array $files): Promise
     {
         return coroutine(function () use ($files) {
+
+            $this->db->startIndex();
             foreach ($files as $i => $uri) {
                 // Give LS to the chance to handle requests while indexing
                 yield timeout();
@@ -161,10 +163,8 @@ class Indexer
             $this->client->window->logMessage(MessageType::LOG, "Resolving references");
             $start = microtime(true);
             $this->db->resolveReferences();
-            $unresolved = $this->db->getUnresolvedReferenceCount();
             $duration = (int)(microtime(true) - $start);
             $this->client->window->logMessage(MessageType::LOG, "Resolved references in {$duration} seconds.");
-            $this->client->window->logMessage(MessageType::LOG, "{$unresolved} unresolved references remaining.");
             $this->client->window->logMessage(MessageType::LOG, "----------------------------------------------");
             $numsyms = 0;
             $numrefs = 0;
@@ -180,6 +180,8 @@ class Indexer
                     $this->client->textDocument->publishDiagnostics($uri, $d);
                 }
             }
+
+            $this->db->finishIndex();
         });
     }
 }
