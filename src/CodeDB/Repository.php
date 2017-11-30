@@ -19,6 +19,9 @@ class Repository {
             'hash' => 'TEXT',
         ]);
 
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `files_uri` ON `files` ( `uri` )');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `files_hash` ON `files` ( `hash` )');
+        
         $this->createTable('symbols', [
             'id' => 'INTEGER PRIMARY KEY',
             'parent_id' => 'INTEGER',
@@ -32,6 +35,10 @@ class Repository {
             'range_end_character' => 'INTEGER',
         ]);
 
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_parent_id` ON `symbols` ( `parent_id` )');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_fqn` ON `symbols` ( `fqn` )');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_file_id` ON `symbols` ( `file_id` )');
+        
         $this->createTable('references', [
             'id' => 'INTEGER PRIMARY KEY',
             'type' => 'INTEGER',
@@ -45,7 +52,8 @@ class Repository {
         ]);
 
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `references_fqn` ON `references` ( `fqn` )');
-        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_fqn` ON `symbols` ( `fqn` )');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `references_symbol_id` ON `references` ( `symbol_id` )');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `references_file_id` ON `references` ( `file_id` )');
     }
 
     private function insert(string $table, array $values) {

@@ -168,6 +168,7 @@ class TextDocument
             yield null;
 
             try {
+                return;
                 $this->db->beginTransaction();
                 $this->db->removeFile($textDocument->uri);
                 echo "removeFile: ".((int)((microtime(true)-$start)*1000))."ms\n";
