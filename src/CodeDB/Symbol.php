@@ -50,16 +50,16 @@ class Symbol {
 
 
         switch($this->type) {
-            case self::_VARIABLE: $name = '$'; break;
-            case self::_NAMESPACE: $name = 'namespace '; break;
-            case self::_CLASS: $name = 'class '; break;
-            case self::_FUNCTION: $name = 'function '; break;
-            case self::_INTERFACE: $name = 'interface '; break;
-            case self::_TRAIT: $name = 'trait '; break;
-            case self::_CONSTANT: $name = 'const '; break;
+            case self::_VARIABLE: $name = '$'.$this->name; break;
+            case self::_NAMESPACE: $name = 'namespace '.$this->name; break;
+            case self::_CLASS: $name = 'class '.$this->name; break;
+            case self::_FUNCTION: $name = 'function '.$this->name.'()'; break;
+            case self::_INTERFACE: $name = 'interface '.$this->name; break;
+            case self::_TRAIT: $name = 'trait '.$this->name; break;
+            case self::_CONSTANT: $name = 'const '.$this->name; break;
             default: $name = '';
         }
-        $name .= $this->name;
+
         return "<?php\n".$desc."\n".$name;
     }
 }

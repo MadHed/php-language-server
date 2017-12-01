@@ -80,6 +80,9 @@ class Repository {
         return $id;
     }
 
+    /**
+     * Creates a table
+     */
     private function createTable(string $name, array $fields) {
         $qry = 'CREATE TABLE IF NOT EXISTS "'.$name.'" (';
         $first = true;
