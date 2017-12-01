@@ -67,7 +67,7 @@ class Collector {
         $repo->addFile($this->file);
     }
 
-    private function createSymbol($type, string $name, $range = null) {
+    private function createSymbol($type, string $description, string $name, $range = null) {
         $fqn = $name;
         $parent_id = null;
 
@@ -102,6 +102,7 @@ class Collector {
 
         $sym = new Symbol;
         $sym->parent_id = $parent_id;
+        $sym->description = $description;
         $sym->name = $name;
         $sym->fqn = $fqn;
         $sym->type = $type;
@@ -233,7 +234,7 @@ class Collector {
 
     private function getGlobalNamespace() {
         if (!isset($this->namespaces[''])) {
-            $ns = $this->createSymbol(Symbol::_NAMESPACE, '');
+            $ns = $this->createSymbol(Symbol::_NAMESPACE, '', '');
             $this->namespaces[''] = $ns;
         }
         return $this->namespaces[''];
@@ -263,7 +264,7 @@ class Collector {
                 $this->namespace = $this->namespaces[$name];
             }
             else {
-                $ns = $this->createSymbol(Symbol::_NAMESPACE, $name, $this->getRangeFromNode($node->name ?? $node));
+                $ns = $this->createSymbol(Symbol::_NAMESPACE, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->name ?? $node));
                 $this->namespace = $ns;
                 $this->namespaces[$name] = $ns;
             }
@@ -298,7 +299,7 @@ class Collector {
         else if ($node instanceof ClassDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
-                $this->currentClass = $this->createSymbol(Symbol::_CLASS, $name, $this->getRangeFromNode($node->name));
+                $this->currentClass = $this->createSymbol(Symbol::_CLASS, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->name));
 
                 if ($node->classBaseClause && $node->classBaseClause->baseClass) {
                     $className = $node->classBaseClause->baseClass->getText();
@@ -317,7 +318,7 @@ class Collector {
         else if ($node instanceof InterfaceDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
-                $this->currentInterface = $this->createSymbol(Symbol::_INTERFACE, $name, $this->getRangeFromNode($node->name));
+                $this->currentInterface = $this->createSymbol(Symbol::_INTERFACE, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->name));
 
                 if ($node->interfaceBaseClause && $node->interfaceBaseClause->interfaceNameList) {
                     foreach($node->interfaceBaseClause->interfaceNameList->children as $interfaceName) {
@@ -332,13 +333,13 @@ class Collector {
         else if ($node instanceof FunctionDeclaration) {
             $name = $node->name->getText($this->src->fileContents);
             if ($name) {
-                $this->currentFunction = $this->createSymbol(Symbol::_FUNCTION, $name, $this->getRangeFromNode($node->name));
+                $this->currentFunction = $this->createSymbol(Symbol::_FUNCTION, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->name));
             }
         }
         else if ($node instanceof MethodDeclaration) {
             $name = $node->name->getText($this->src);
             if ($name && ($this->currentClass || $this->currentInterface)) {
-                $this->currentFunction = $this->createSymbol(Symbol::_FUNCTION, $name, $this->getRangeFromNode($node->name));
+                $this->currentFunction = $this->createSymbol(Symbol::_FUNCTION, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->name));
             }
         }
         else if ($node instanceof ConstDeclaration || $node instanceof ClassConstDeclaration) {
@@ -350,7 +351,7 @@ class Collector {
                 foreach($elements as $el) {
                     if (!$el instanceof ConstElement) continue;
                     $name = $this->getText($el->name);
-                    $co = $this->createSymbol(Symbol::_CONSTANT, $name, $this->getRangeFromNode($el->name));
+                    $co = $this->createSymbol(Symbol::_CONSTANT, $el->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($el->name));
                 }
             }
         }
@@ -371,7 +372,7 @@ class Collector {
                     $this->file->references->append($ref);*/
                 }
                 else if (!\array_key_exists($name, $this->scope)) {
-                    $var = $this->createSymbol(Symbol::_VARIABLE, $name, $this->getRangeFromNode($node->name));
+                    $var = $this->createSymbol(Symbol::_VARIABLE, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->name));
                     $this->scope[$name] = $var;
                 }
                 else {
@@ -398,7 +399,7 @@ class Collector {
         else if ($node instanceof \Microsoft\PhpParser\Node\Parameter) {
             $name = $node->getName();
             if ($name) {
-                $var = $this->createSymbol(Symbol::_VARIABLE, $name, $this->getRangeFromNode($node->variableName));
+                $var = $this->createSymbol(Symbol::_VARIABLE, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->variableName));
                 $this->scope[$name] = $var;
             }
         }
@@ -497,7 +498,7 @@ class Collector {
                     if (count($node->argumentExpressionList->children) > 1) {
                         if ($node->argumentExpressionList->children[0]->expression instanceof StringLiteral) {
                             $name = $node->argumentExpressionList->children[0]->expression->getStringContentsText();
-                            $con = $this->createSymbol(Symbol::_CONSTANT, $name, $this->getRangeFromNode($node->argumentExpressionList->children[0]));
+                            $con = $this->createSymbol(Symbol::_CONSTANT, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->argumentExpressionList->children[0]));
                         }
                     }
                 }

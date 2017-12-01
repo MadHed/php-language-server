@@ -77,7 +77,7 @@ class TextDocument
 
             foreach($symbols as $sym) {
                 $cl = new CodeLens;
-                $cl->range = new Range(new Position((int)$sym->range_start_line, (int)$sym->range_start_character), new Position((int)$sym->range_end_line, (int)$sym->range_end_character));
+                $cl->range = $sym->getRange();
                 $cmd = new Command;
                 $cmd->title = $sym->ref_count.' references';
                 $cmd->command = '';
@@ -126,7 +126,7 @@ class TextDocument
                     $kind,
                     new \LanguageServer\Protocol\Location(
                         $textDocument->uri,
-                        new Range(new Position((int)$symbol->range_start_line, (int)$symbol->range_start_character), new Position((int)$symbol->range_end_line, (int)$symbol->range_end_character))
+                        $symbol->getRange()
                     ),
                     $symbol->parent_fqn
                 );
@@ -168,7 +168,6 @@ class TextDocument
             yield null;
 
             try {
-                return;
                 $this->db->beginTransaction();
                 $this->db->removeFile($textDocument->uri);
                 echo "removeFile: ".((int)((microtime(true)-$start)*1000))."ms\n";
@@ -278,7 +277,7 @@ class TextDocument
             foreach($refs as $ref) {
                 $locations[] = new Location(
                     $ref->uri,
-                    new Range(new Position((int)$ref->range_start_line, (int)$ref->range_start_character), new Position((int)$ref->range_end_line, (int)$ref->range_end_character))
+                    $ref->getRange()
                 );
             }
             return $locations;
@@ -369,7 +368,7 @@ class TextDocument
             if (!$file) return [];
             return new Location(
                 $file->uri,
-                new Range(new Position((int)$sym->range_start_line, (int)$sym->range_start_character), new Position((int)$sym->range_end_line, (int)$sym->range_end_character))
+                $sym->getRange()
             );
         });
         /* return coroutine(function () use ($textDocument, $position) {
@@ -415,24 +414,33 @@ class TextDocument
     {
         return coroutine(function () use($textDocument, $position) {
             yield null;
-            if ($ref = $this->db->getReferenceAtPosition($textDocument->uri, $position->line, $position->character)) {
+            $sym = $this->db->getSymbolAtPosition($textDocument->uri, $position->line, $position->character);
+            if (!$sym) {
+                $ref = $this->db->getReferenceAtPosition($textDocument->uri, $position->line, $position->character);
+                if ($ref && $ref->symbol_id) {
+                    $sym = $this->db->getSymbolById($ref->symbol_id);
+                }
+            }
+
+            if ($sym) {
+                return new Hover(
+                    new MarkedString(
+                        'php',
+                        $sym->getDescription()
+                    ),
+                    $sym->getRange()
+                );
+            }
+            else if ($ref) {
                 return new Hover(
                     new MarkedString(
                         'php',
                         $ref->fqn
                     ),
-                    new Range(new Position((int)$ref->range_start_line, (int)$ref->range_start_character), new Position((int)$ref->range_end_line, (int)$ref->range_end_character))
+                    $ref->getRange()
                 );
             }
-            else if ($sym = $this->db->getSymbolAtPosition($textDocument->uri, $position->line, $position->character)) {
-                return new Hover(
-                    new MarkedString(
-                        'php',
-                        $sym->fqn
-                    ),
-                    new Range(new Position((int)$sym->range_start_line, (int)$sym->range_start_character), new Position((int)$sym->range_end_line, (int)$sym->range_end_character))
-                );
-            }
+
             return null;
         });
     }

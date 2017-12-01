@@ -26,6 +26,7 @@ class Repository {
             'id' => 'INTEGER PRIMARY KEY',
             'parent_id' => 'INTEGER',
             'type' => 'INTEGER',
+            'description' => 'TEXT',
             'name' => 'TEXT',
             'fqn' => 'TEXT',
             'file_id' => 'INTEGER',
@@ -123,10 +124,7 @@ class Repository {
     public function getSymbolRefCount($uri) {
         $stmt = $this->pdo->prepare('
         SELECT
-            "symbols"."range_start_line",
-            "symbols"."range_start_character",
-            "symbols"."range_end_line",
-            "symbols"."range_end_character",
+            symbols.*,
             count("references"."id") AS "ref_count"
         FROM
             "files"
@@ -147,7 +145,7 @@ class Repository {
         ');
         $stmt->execute(['uri' => $uri]);
         $objs = [];
-        while(($row = $stmt->fetch(\PDO::FETCH_OBJ)) !== false) {
+        while(($row = $stmt->fetchObject(Symbol::class)) !== false) {
             $objs[] = $row;
         }
         return $objs;
@@ -246,18 +244,13 @@ class Repository {
             )
             ');
         $stmt->execute(['uri' => $uri, 'line' => $line, 'character' => $character]);
-        return $stmt->fetch(\PDO::FETCH_OBJ);
+        return $stmt->fetchObject(Reference::class);
     }
 
     public function getSymbolAtPosition($uri, $line, $character) {
         $stmt = $this->pdo->prepare('
         SELECT
-            "symbols"."id",
-            "symbols"."range_start_line",
-            "symbols"."range_start_character",
-            "symbols"."range_end_line",
-            "symbols"."range_end_character",
-            "symbols"."fqn"
+            symbols.*
         FROM
             "symbols"
         JOIN
@@ -277,7 +270,7 @@ class Repository {
             )
         ');
         $stmt->execute(['uri' => $uri, 'line' => $line, 'character' => $character]);
-        return $stmt->fetch(\PDO::FETCH_OBJ);
+        return $stmt->fetchObject(Symbol::class);
     }
 
     public function getSymbolById($id) {
@@ -450,6 +443,7 @@ class Repository {
 
         $symbol->id = $this->insert('symbols', [
             'parent_id' => $symbol->parent_id,
+            'description' => $symbol->description,
             'name' => $symbol->name,
             'fqn' => $symbol->fqn,
             'type' => $symbol->type,
