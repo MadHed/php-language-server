@@ -315,7 +315,7 @@ class Repository {
     public function resolveReferences() {
         $this->pdo->exec('
         UPDATE "references" SET symbol_id = (SELECT id FROM symbols WHERE symbols.fqn = "references"."fqn")
-        WHERE EXISTS (SELECT 1 FROM symbols WHERE symbols.fqn = "references"."fqn")
+        WHERE symbol_id IS NULL AND EXISTS (SELECT id FROM symbols WHERE symbols.fqn = "references"."fqn")
         ');
         return;
         $start = microtime(true);
