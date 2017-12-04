@@ -415,6 +415,7 @@ class TextDocument
         return coroutine(function () use($textDocument, $position) {
             yield null;
             $sym = $this->db->getSymbolAtPosition($textDocument->uri, $position->line, $position->character);
+            $ref = null;
             if (!$sym) {
                 $ref = $this->db->getReferenceAtPosition($textDocument->uri, $position->line, $position->character);
                 if ($ref && $ref->symbol_id) {
@@ -428,7 +429,7 @@ class TextDocument
                         'php',
                         $sym->getDescription()
                     ),
-                    $sym->getRange()
+                    $ref ? $ref->getRange() : $sym->getRange()
                 );
             }
             else if ($ref) {

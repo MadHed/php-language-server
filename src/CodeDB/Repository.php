@@ -6,7 +6,10 @@ class Repository {
     private $pdo;
 
     public function __construct($rootPath) {
-        $this->pdo = new \PDO("sqlite:$rootPath//codedb.sqlite");
+        if (!\file_exists("$rootPath/.phpls")) {
+            \mkdir("$rootPath/.phpls", 0775, true);
+        }
+        $this->pdo = new \PDO("sqlite:$rootPath/.phpls/codedb.sqlite");
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
         /*$this->pdo->exec('DROP TABLE IF EXISTS "files"');
@@ -199,14 +202,16 @@ class Repository {
         LEFT JOIN
             symbols AS s2 on symbols.parent_id = s2.id
         WHERE
-            symbols.name like \'%'.$name.'%\' AND
+            symbols.name like :name AND
             (
                 s2.type IS NULL OR
                 s2.type IN (1,2,4,6)
             )
         ');
 
-        $stmt->execute();
+        $stmt->execute([
+            'name' => "%$name%"
+        ]);
         $objs = [];
         while(($row = $stmt->fetch(\PDO::FETCH_ASSOC)) !== false) {
             $obj = new Symbol;
@@ -297,9 +302,11 @@ class Repository {
         JOIN
             files on file_id = files.id
         WHERE
-            symbol_id = '.$id
+            symbol_id = :symbol_id'
         );
-        $stmt->execute();
+        $stmt->execute([
+            'symbol_id' => $id
+        ]);
         $objs = [];
         while(($row = $stmt->fetch(\PDO::FETCH_ASSOC)) !== false) {
             $obj = new Reference;
@@ -422,6 +429,9 @@ class Repository {
         $stmt->execute(['id' => $file->id]);
 
         $stmt = $this->pdo->prepare('DELETE FROM "references" WHERE file_id = :file_id');
+        $stmt->execute(['file_id' => $file->id]);
+
+        $stmt = $this->pdo->prepare('UPDATE "references" SET symbol_id = NULL WHERE "references"."symbol_id" IS NOT NULL AND (SELECT file_id FROM symbols WHERE symbols.id = "references"."symbol_id") = :file_id');
         $stmt->execute(['file_id' => $file->id]);
 
         $stmt = $this->pdo->prepare('DELETE FROM "symbols" WHERE file_id = :file_id');
