@@ -12,9 +12,11 @@ class Repository {
         $this->pdo = new \PDO("sqlite:$rootPath/.phpls/codedb.sqlite");
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
-        /*$this->pdo->exec('DROP TABLE IF EXISTS "files"');
-        $this->pdo->exec('DROP TABLE IF EXISTS "symbols"');
-        $this->pdo->exec('DROP TABLE IF EXISTS "references"');*/
+        $this->pdo->exec('PRAGMA foreign_keys = ON');
+
+        // $this->pdo->exec('DROP TABLE IF EXISTS "references"');
+        // $this->pdo->exec('DROP TABLE IF EXISTS "symbols"');
+        // $this->pdo->exec('DROP TABLE IF EXISTS "files"');
 
         $this->createTable('files', [
             'id' => 'INTEGER PRIMARY KEY',
@@ -24,7 +26,7 @@ class Repository {
 
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `files_uri` ON `files` ( `uri` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `files_hash` ON `files` ( `hash` )');
-        
+
         $this->createTable('symbols', [
             'id' => 'INTEGER PRIMARY KEY',
             'parent_id' => 'INTEGER REFERENCES `symbols`',
@@ -32,7 +34,7 @@ class Repository {
             'description' => 'TEXT',
             'name' => 'TEXT',
             'fqn' => 'TEXT',
-            'file_id' => 'INTEGER REFERENCES `files`',
+            'file_id' => 'INTEGER REFERENCES `files` ON DELETE CASCADE',
             'range_start_line' => 'INTEGER',
             'range_start_character' => 'INTEGER',
             'range_end_line' => 'INTEGER',
@@ -43,13 +45,13 @@ class Repository {
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_type` ON `symbols` ( `type` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_fqn` ON `symbols` ( `fqn` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_file_id` ON `symbols` ( `file_id` )');
-        
+
         $this->createTable('references', [
             'id' => 'INTEGER PRIMARY KEY',
             'type' => 'INTEGER',
             'fqn' => 'TEXT',
-            'symbol_id' => 'INTEGER REFERENCES `symbols`',
-            'file_id' => 'INTEGER REFERENCES `files`',
+            'symbol_id' => 'INTEGER REFERENCES `symbols` ON DELETE SET NULL',
+            'file_id' => 'INTEGER REFERENCES `files` ON DELETE CASCADE',
             'range_start_line' => 'INTEGER',
             'range_start_character' => 'INTEGER',
             'range_end_line' => 'INTEGER',
@@ -329,7 +331,7 @@ class Repository {
         UPDATE "references" SET symbol_id = (SELECT id FROM symbols WHERE symbols.fqn = "references"."fqn")
         WHERE symbol_id IS NULL AND EXISTS (SELECT id FROM symbols WHERE symbols.fqn = "references"."fqn")
         ');
-        
+
         $stmt = $this->pdo->query('
         SELECT id, fqn FROM "references"
         WHERE
@@ -340,12 +342,11 @@ class Repository {
 
         $up = $this->pdo->prepare('
         UPDATE "references" SET
-        symbol_id = (SELECT id FROM symbols WHERE symbols.fqn = :fqn),
-        fqn = :fqn
+        symbol_id = (SELECT id FROM symbols WHERE symbols.fqn = :fqn)
         WHERE "references"."id" = :id AND
         EXISTS (SELECT id FROM symbols WHERE symbols.fqn = :fqn)
         ');
-    
+
         foreach($stmt as $row) {
             $name = substr($row['fqn'], strrpos($row['fqn'], '\\'));
             $up->execute([
@@ -452,17 +453,17 @@ class Repository {
         $file = $this->getFile($uri);
         if (!$file) return;
 
-        $stmt = $this->pdo->prepare('DELETE FROM "files" WHERE id = :id');
-        $stmt->execute(['id' => $file->id]);
+        /*$stmt = $this->pdo->prepare('UPDATE "references" SET symbol_id = NULL WHERE "references"."symbol_id" IS NOT NULL AND (SELECT file_id FROM symbols WHERE symbols.id = "references"."symbol_id") = :file_id');
+        $stmt->execute(['file_id' => $file->id]);
 
         $stmt = $this->pdo->prepare('DELETE FROM "references" WHERE file_id = :file_id');
         $stmt->execute(['file_id' => $file->id]);
 
-        $stmt = $this->pdo->prepare('UPDATE "references" SET symbol_id = NULL WHERE "references"."symbol_id" IS NOT NULL AND (SELECT file_id FROM symbols WHERE symbols.id = "references"."symbol_id") = :file_id');
-        $stmt->execute(['file_id' => $file->id]);
-
         $stmt = $this->pdo->prepare('DELETE FROM "symbols" WHERE file_id = :file_id');
-        $stmt->execute(['file_id' => $file->id]);
+        $stmt->execute(['file_id' => $file->id]);*/
+
+        $stmt = $this->pdo->prepare('DELETE FROM "files" WHERE id = :id');
+        $stmt->execute(['id' => $file->id]);
     }
 
     public function addFile(File $file) {

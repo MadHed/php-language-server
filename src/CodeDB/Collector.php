@@ -115,8 +115,9 @@ class Collector {
         return $sym;
     }
 
-    private function createReference($type, string $fqn, $range) {
+    private function createReference($type, string $fqn, $range, $id = null) {
         $ref = new Reference;
+        $ref->symbol_id = $id;
         $ref->fqn = strtolower($fqn);
         $ref->type = $type;
         $ref->file_id = $this->file->id;
@@ -359,17 +360,8 @@ class Collector {
             $name = $node->getName();
             if ($name) {
                 if ($name === 'this') {
-                    /*if (!$this->currentClass) return;
-                    $start = $node->getStart();
-                    $length = $node->getEndPosition() - $start;
-                    $ref = new Reference(
-                        $this->file,
-                        $start,
-                        $length,
-                        $this->currentClass
-                    );
-                    $this->currentClass->addBackRef($ref);
-                    $this->file->references->append($ref);*/
+                    if (!$this->currentClass) return;
+                    $ref = $this->createReference(0, $this->currentClass->fqn, $this->getRangeFromNode($node), $this->currentClass->id);
                 }
                 else if (!\array_key_exists($name, $this->scope)) {
                     $var = $this->createSymbol(Symbol::_VARIABLE, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($node->name));
@@ -377,7 +369,7 @@ class Collector {
                 }
                 else {
                     $var = $this->scope[$name];
-                    $ref = $this->createReference(0, $var->fqn, $this->getRangeFromNode($node));
+                    $ref = $this->createReference(0, $var->fqn, $this->getRangeFromNode($node), $var->id);
                 }
             }
         }

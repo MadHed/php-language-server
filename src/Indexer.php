@@ -69,6 +69,8 @@ class Indexer
      */
     private $composerJson;
 
+    private $db;
+
     /**
      * @param FilesFinder       $filesFinder
      * @param string            $rootPath
