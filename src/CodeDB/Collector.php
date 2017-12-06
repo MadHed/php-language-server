@@ -351,7 +351,7 @@ class Collector {
                 foreach($elements as $el) {
                     if (!$el instanceof ConstElement) continue;
                     $name = $this->getText($el->name);
-                    $co = $this->createSymbol(Symbol::_CONSTANT, $el->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($el->name));
+                    $co = $this->createSymbol(Symbol::_CONSTANT, $node->getLeadingCommentAndWhitespaceText(), $name, $this->getRangeFromNode($el->name));
                 }
             }
         }

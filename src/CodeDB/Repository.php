@@ -27,12 +27,12 @@ class Repository {
         
         $this->createTable('symbols', [
             'id' => 'INTEGER PRIMARY KEY',
-            'parent_id' => 'INTEGER',
+            'parent_id' => 'INTEGER REFERENCES `symbols`',
             'type' => 'INTEGER',
             'description' => 'TEXT',
             'name' => 'TEXT',
             'fqn' => 'TEXT',
-            'file_id' => 'INTEGER',
+            'file_id' => 'INTEGER REFERENCES `files`',
             'range_start_line' => 'INTEGER',
             'range_start_character' => 'INTEGER',
             'range_end_line' => 'INTEGER',
@@ -40,6 +40,7 @@ class Repository {
         ]);
 
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_parent_id` ON `symbols` ( `parent_id` )');
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_type` ON `symbols` ( `type` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_fqn` ON `symbols` ( `fqn` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `symbols_file_id` ON `symbols` ( `file_id` )');
         
@@ -47,14 +48,15 @@ class Repository {
             'id' => 'INTEGER PRIMARY KEY',
             'type' => 'INTEGER',
             'fqn' => 'TEXT',
-            'symbol_id' => 'INTEGER',
-            'file_id' => 'INTEGER',
+            'symbol_id' => 'INTEGER REFERENCES `symbols`',
+            'file_id' => 'INTEGER REFERENCES `files`',
             'range_start_line' => 'INTEGER',
             'range_start_character' => 'INTEGER',
             'range_end_line' => 'INTEGER',
             'range_end_character' => 'INTEGER',
         ]);
 
+        $this->pdo->exec('CREATE INDEX IF NOT EXISTS `references_type` ON `references` ( `type` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `references_fqn` ON `references` ( `fqn` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `references_symbol_id` ON `references` ( `symbol_id` )');
         $this->pdo->exec('CREATE INDEX IF NOT EXISTS `references_file_id` ON `references` ( `file_id` )');
@@ -327,6 +329,31 @@ class Repository {
         UPDATE "references" SET symbol_id = (SELECT id FROM symbols WHERE symbols.fqn = "references"."fqn")
         WHERE symbol_id IS NULL AND EXISTS (SELECT id FROM symbols WHERE symbols.fqn = "references"."fqn")
         ');
+        
+        $stmt = $this->pdo->query('
+        SELECT id, fqn FROM "references"
+        WHERE
+        symbol_id IS NULL AND
+        instr(fqn, "::") = 0 AND
+        instr(substr(fqn, 2), "\") > 0 AND
+        instr(fqn, "()") > 0');
+
+        $up = $this->pdo->prepare('
+        UPDATE "references" SET
+        symbol_id = (SELECT id FROM symbols WHERE symbols.fqn = :fqn),
+        fqn = :fqn
+        WHERE "references"."id" = :id AND
+        EXISTS (SELECT id FROM symbols WHERE symbols.fqn = :fqn)
+        ');
+    
+        foreach($stmt as $row) {
+            $name = substr($row['fqn'], strrpos($row['fqn'], '\\'));
+            $up->execute([
+                'fqn' => $name,
+                'id' => $row['id']
+            ]);
+        }
+
         return;
         $start = microtime(true);
         // first resolve non-members
